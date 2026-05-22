@@ -16,7 +16,18 @@ interface MiningStore {
   speedTier: number; // 0 = standard, 1 = boosted, 2 = turbo, 3 = max
   currentSession: MiningSession | null;
   history: PastSession[];
-  
+
+  // Unpaid Sessions
+  unpaidSessions: Array<{
+    sessionId: string;
+    coinId: string;
+    coinName: string;
+    coinTicker: string;
+    minedAmount: number;
+    minedUsd: number;
+    speedTier: number;
+  }>;
+
   // Withdrawal Modal centralized state
   isWithdrawalModalOpen: boolean;
   withdrawalSession: {
@@ -46,6 +57,8 @@ interface MiningStore {
     speedTier: number;
   }) => void;
   closeWithdrawalModal: () => void;
+  addUnpaidSession: (session: any) => void;
+  removeUnpaidSession: (sessionId: string) => void;
 }
 
 const generateSessionId = (): string => {
@@ -76,6 +89,7 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   speedTier: 1, // default Boosted
   currentSession: null,
   history: [],
+  unpaidSessions: [],
   isWithdrawalModalOpen: false,
   withdrawalSession: null,
 
@@ -91,6 +105,18 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
       isWithdrawalModalOpen: false,
       withdrawalSession: null,
     });
+  },
+
+  addUnpaidSession: (session) => {
+    const { unpaidSessions } = get();
+    if (!unpaidSessions.find(s => s.sessionId === session.sessionId)) {
+      set({ unpaidSessions: [...unpaidSessions, session] });
+    }
+  },
+
+  removeUnpaidSession: (sessionId) => {
+    const { unpaidSessions } = get();
+    set({ unpaidSessions: unpaidSessions.filter(s => s.sessionId !== sessionId) });
   },
 
   setSelectedCoin: (coin) => {
