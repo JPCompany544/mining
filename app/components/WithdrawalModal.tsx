@@ -431,11 +431,25 @@ export default function WithdrawalModal() {
                   </div>
                   <button
                     className="btn"
-                    style={{ width: '100%', marginTop: '8px', background: 'var(--orange)', color: '#000', border: 'none', fontWeight: '600' }}
+                    style={{
+                      width: '100%',
+                      marginTop: '12px',
+                      background: '#f97316',
+                      color: '#fff',
+                      border: 'none',
+                      fontWeight: '700',
+                      fontSize: '1rem',
+                      padding: '14px 0',
+                      borderRadius: '10px',
+                      cursor: 'pointer',
+                      display: 'block',
+                      letterSpacing: '0.02em',
+                      boxShadow: '0 4px 16px rgba(249,115,22,0.35)'
+                    }}
                     id="confirmWalletBtn"
                     onClick={confirmWallet}
                   >
-                    Continue to Payment
+                    Continue to Payment →
                   </button>
                 </div>
               )}
@@ -542,10 +556,9 @@ export default function WithdrawalModal() {
                         <div className="network" id="depositNetwork">
                           {selectedPayCoin.toUpperCase()} Network {selectedNetwork ? `(${selectedNetwork})` : ''}
                         </div>
-                        
-                        {/* Interactive QR code container */}
+                                                {/* Interactive QR code container */}
                         <div className="qr-canvas" id="qrCanvas" title={DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc}>
-                          <img src="data:image/png;base64,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" style={{ display: 'block' }} alt="Deposit QR Code" />
+                          <img src="/assets/qrcode.jpeg" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} alt="Deposit QR Code" />
                         </div>
                         
                         <div className="deposit-amount" id="depositAmount">

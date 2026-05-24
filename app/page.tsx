@@ -361,7 +361,6 @@ export default function Home() {
     isMiningLiveRef.current = !!(isMining && currentSession);
 
     if (isMiningLiveRef.current) {
-      tick();
       animationFrameIdRef.current = requestAnimationFrame(tick);
     } else {
       tick();

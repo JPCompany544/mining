@@ -1288,6 +1288,7 @@ body {
   background: linear-gradient(90deg, #EC7505, #ffae19);
   transform: scaleX(0);
   transform-origin: left;
+  will-change: transform;
 }
 
 .device-notice {
@@ -2902,5 +2903,57 @@ body {
 .btn-success-close:hover {
   transform: translateY(-2px) !important;
   box-shadow: 0 8px 30px rgba(0, 214, 143, 0.45) !important;
+}
+
+/* ==========================================================================
+   Mobile Performance & Glitch Elimination Override
+   ========================================================================== */
+@media (max-width: 768px) {
+  /* Disable expensive backdrop blur filters on mobile viewports to prevent frame thrashing and rendering lag */
+  #navbar,
+  .nav-links,
+  .hf-item,
+  .stats-bar,
+  .coin-chip,
+  .mine-display,
+  .mine-card,
+  .modal-overlay,
+  .modal,
+  .unpaid-banner-modal {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Supply solid high-quality dark fallback backgrounds for beautiful styling without visual filters */
+  #navbar {
+    background-color: rgba(3, 7, 18, 0.98) !important;
+  }
+  .nav-links {
+    background-color: rgba(3, 7, 18, 1) !important;
+  }
+  .hf-item {
+    background-color: rgba(15, 15, 20, 0.95) !important;
+  }
+  .stats-bar {
+    background-color: rgba(15, 15, 20, 0.95) !important;
+  }
+  .coin-chip {
+    background-color: rgba(20, 20, 25, 0.95) !important;
+  }
+  .mine-display {
+    background-color: rgba(15, 15, 20, 0.95) !important;
+  }
+  .mine-card {
+    background-color: rgba(15, 15, 20, 0.95) !important;
+  }
+  .modal-overlay {
+    background-color: rgba(3, 7, 18, 0.85) !important;
+  }
+  .modal {
+    background-color: rgba(20, 20, 25, 1) !important;
+  }
+  .unpaid-banner-modal {
+    background-color: rgba(20, 20, 25, 1) !important;
+  }
 }
 
