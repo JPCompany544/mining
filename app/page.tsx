@@ -50,8 +50,8 @@ const COINS = [
 
 const FAQ_ITEMS = [
   {
-    q: 'How does cloud mining work on NEXAHASH?',
-    a: 'NEXAHASH allocates GPU resources from our distributed datacenter clusters to your mining session. You select a cryptocurrency and cluster power level, and our infrastructure handles the rest. No hardware or software installation required — everything runs in the cloud.',
+    q: 'How does cloud mining work on Chukohash?',
+    a: 'Chukohash allocates GPU resources from our distributed datacenter clusters to your mining session. You select a cryptocurrency and cluster power level, and our infrastructure handles the rest. No hardware or software installation required — everything runs in the cloud.',
   },
   {
     q: "Does mining use my device's resources?",
