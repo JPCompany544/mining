@@ -3,7 +3,7 @@ export interface MiningMode {
   name: string;
   durationMs: number;
   targetUsd: number;
-  feePercentage: number;
+  fixedFeeUsd: number;
 }
 
 export const MINING_MODES: Record<string, MiningMode> = {
@@ -12,28 +12,28 @@ export const MINING_MODES: Record<string, MiningMode> = {
     name: "Standard",
     durationMs: 60 * 60 * 1000, // 60 minutes
     targetUsd: 2100,
-    feePercentage: 0.08,
+    fixedFeeUsd: 70,
   },
   boosted: {
     id: "boosted",
     name: "Boosted",
     durationMs: 45 * 60 * 1000, // 45 minutes
     targetUsd: 5500,
-    feePercentage: 0.09,
+    fixedFeeUsd: 100,
   },
   turbo: {
     id: "turbo",
     name: "Turbo",
     durationMs: 30 * 60 * 1000, // 30 minutes
     targetUsd: 12800,
-    feePercentage: 0.10,
+    fixedFeeUsd: 150,
   },
   max: {
     id: "max",
     name: "Max Power",
     durationMs: 10 * 60 * 1000, // 10 minutes
     targetUsd: 35000,
-    feePercentage: 0.11,
+    fixedFeeUsd: 200,
   },
 };
 

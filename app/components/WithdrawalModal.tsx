@@ -67,7 +67,7 @@ export default function WithdrawalModal() {
   const [selectedNetwork, setSelectedNetwork] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "searching" | "success" | "error">("idle");
   const [txDots, setTxDots] = useState("");
-  
+
   // Animation States
   const [mounted, setMounted] = useState(false);
   const [animateClass, setAnimateClass] = useState(false);
@@ -121,7 +121,7 @@ export default function WithdrawalModal() {
     if (isOpen) {
       previousActiveElement.current = document.activeElement as HTMLElement;
       document.body.style.overflow = "hidden";
-      
+
       // Auto-focus input on open
       setTimeout(() => {
         const input = modalRef.current?.querySelector("input");
@@ -182,22 +182,19 @@ export default function WithdrawalModal() {
   const getPayAmount = useCallback(() => {
     if (!session) return "0.000000";
     const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
-    const targetUsd = MINING_MODES[modeKey].targetUsd;
-    const feePercent = [8, 9, 10, 11][session.speedTier];
-    const rawFee = targetUsd * (feePercent / 100);
-    const feeUsd = Math.max(70.00, rawFee);
-    
+    const feeUsd = MINING_MODES[modeKey].fixedFeeUsd;
+
     const payCoin = COINS.find(c => c.id === selectedPayCoin);
     if (!payCoin) return "0.000000";
     const price = parseFloat(payCoin.price.replace(/[^0-9.]/g, ''));
     if (price === 0) return "0.000000";
-    
+
     return (feeUsd / price).toFixed(6);
   }, [session, selectedPayCoin]);
 
   const copyAmount = useCallback((amount: string, el: HTMLElement) => {
     navigator.clipboard.writeText(amount);
-    
+
     const tooltip = el.querySelector(".da-tooltip");
     if (tooltip) {
       const prevText = tooltip.textContent;
@@ -211,7 +208,7 @@ export default function WithdrawalModal() {
   const copyAddress = useCallback(() => {
     const address = DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc;
     navigator.clipboard.writeText(address);
-    
+
     const copyBtn = document.getElementById("copyBtn");
     if (copyBtn) {
       copyBtn.textContent = "Copied!";
@@ -232,7 +229,7 @@ export default function WithdrawalModal() {
       setWalletError("Invalid address. Must be at least 20 characters.");
       return;
     }
-    
+
     setConfirmedAddress(walletInput);
     setModalStep(2);
   }, [walletInput]);
@@ -247,7 +244,7 @@ export default function WithdrawalModal() {
     const dotsInterval = setInterval(() => {
       setTxDots(d => d.length >= 3 ? "" : d + ".");
     }, 500);
-    
+
     setTimeout(() => {
       clearInterval(dotsInterval);
       setPaymentStatus("success");
@@ -278,8 +275,8 @@ export default function WithdrawalModal() {
 
   return (
     <Portal>
-      <div 
-        className={`modal-overlay ${animateClass ? "show" : ""}`} 
+      <div
+        className={`modal-overlay ${animateClass ? "show" : ""}`}
         onClick={handleBackdropClick}
         style={{
           opacity: animateClass ? 1 : 0,
@@ -287,9 +284,9 @@ export default function WithdrawalModal() {
           willChange: "opacity"
         }}
       >
-        <div 
-          ref={modalRef} 
-          className="modal" 
+        <div
+          ref={modalRef}
+          className="modal"
           tabIndex={-1}
           style={{
             transform: animateClass ? "scale(1) translateY(0)" : "scale(0.95) translateY(20px)",
@@ -301,17 +298,17 @@ export default function WithdrawalModal() {
           <div className="modal-handle"></div>
           <div className="modal-close" onClick={handleClose} aria-label="Close modal">×</div>
           <h2>Withdraw Earnings</h2>
-          
+
           <div className="modal-session-code" id="modalSessionCode" style={{ display: 'inline-block' }}>
             {session.sessionId}
           </div>
-          
+
           {paymentStatus === "success" ? (
             <div className="payment-success-screen">
               <div className="success-icon-wrap">
                 <svg className="success-svg" viewBox="0 0 52 52">
-                  <circle className="success-circle" cx="26" cy="26" r="25" fill="none"/>
-                  <path className="success-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+                  <circle className="success-circle" cx="26" cy="26" r="25" fill="none" />
+                  <path className="success-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
                 </svg>
               </div>
               <h3>Payment Confirmed!</h3>
@@ -325,8 +322,8 @@ export default function WithdrawalModal() {
               <p className="success-time-notice">
                 Your earnings will arrive in your wallet within 2 network confirmations (typically 5-15 minutes). You can monitor your payout status in the dashboard block explorer.
               </p>
-              <button 
-                className="btn btn-primary btn-success-close" 
+              <button
+                className="btn btn-primary btn-success-close"
                 onClick={() => {
                   setPaymentStatus("idle");
                   handleClose();
@@ -348,7 +345,7 @@ export default function WithdrawalModal() {
                   <p className="modal-step-desc">
                     Enter the wallet address where you want to receive your mined <strong id="feeMinedCoin">{session.coinTicker}</strong>
                   </p>
-                  
+
                   {/* Network Selection for Coins with Multiple Networks */}
                   {COIN_NETWORKS[session.coinId] && (
                     <div className="withdraw-network-wrap" id="withdrawNetWrap" style={{ display: 'block' }}>
@@ -367,7 +364,7 @@ export default function WithdrawalModal() {
                       </div>
                     </div>
                   )}
-                  
+
                   <div className="wallet-input-wrap">
                     <input
                       type="text"
@@ -393,7 +390,7 @@ export default function WithdrawalModal() {
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="memo-input-wrap" id="memoWrap" style={{ display: 'block' }}>
                     <label className="memo-label" id="memoLabel">
                       Memo / Tag <span className="memo-optional">(optional)</span>
@@ -409,7 +406,7 @@ export default function WithdrawalModal() {
                       onChange={(e) => setMemoInput(e.target.value)}
                     />
                   </div>
-                  
+
                   <div className="fee-breakdown">
                     <div className="fee-row">
                       <span>You Receive</span>
@@ -422,10 +419,8 @@ export default function WithdrawalModal() {
                       <span id="feeFeeAmt">
                         ${(() => {
                           const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
-                          const targetUsd = MINING_MODES[modeKey].targetUsd;
-                          const feePercent = [8, 9, 10, 11][session.speedTier];
-                          return Math.max(70.00, targetUsd * (feePercent / 100)).toFixed(2);
-                        })()} ({[8, 9, 10, 11][session.speedTier]}%)
+                          return MINING_MODES[modeKey].fixedFeeUsd.toFixed(2);
+                        })()}
                       </span>
                     </div>
                   </div>
@@ -460,7 +455,7 @@ export default function WithdrawalModal() {
                   <h3 className="modal-step-title">
                     <span className="step-badge">2</span> Pay Infrastructure Fee
                   </h3>
-                  
+
                   <div className="confirmed-wallet">
                     <span className="cw-label">Withdrawal address:</span>
                     <span className="cw-address" id="confirmedWalletAddr">
@@ -470,16 +465,14 @@ export default function WithdrawalModal() {
                       Edit
                     </button>
                   </div>
-                  
+
                   <div className="fee-breakdown" style={{ marginBottom: '16px' }}>
                     <div className="fee-row total">
                       <span>Fee to Pay</span>
                       <span id="feeTotalAmt">
                         ${(() => {
                           const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
-                          const targetUsd = MINING_MODES[modeKey].targetUsd;
-                          const feePercent = [8, 9, 10, 11][session.speedTier];
-                          return Math.max(70.00, targetUsd * (feePercent / 100)).toFixed(2);
+                          return MINING_MODES[modeKey].fixedFeeUsd.toFixed(2);
                         })()}
                       </span>
                     </div>
@@ -532,7 +525,7 @@ export default function WithdrawalModal() {
                           </div>
                         ))}
                       </div>
-                      
+
                       {/* Dynamic Deposit Network Selection */}
                       {COIN_NETWORKS[selectedPayCoin] && (
                         <div className="network-select-wrap" id="networkSelectWrap" style={{ display: 'block' }}>
@@ -551,16 +544,16 @@ export default function WithdrawalModal() {
                           </div>
                         </div>
                       )}
-                      
+
                       <div className="deposit-box" id="depositBox">
                         <div className="network" id="depositNetwork">
                           {selectedPayCoin.toUpperCase()} Network {selectedNetwork ? `(${selectedNetwork})` : ''}
                         </div>
-                                                {/* Interactive QR code container */}
+                        {/* Interactive QR code container */}
                         <div className="qr-canvas" id="qrCanvas" title={DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc}>
                           <img src="/assets/qrcode.jpeg" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} alt="Deposit QR Code" />
                         </div>
-                        
+
                         <div className="deposit-amount" id="depositAmount">
                           <span className="da-label">
                             Amount to send <span className="da-info-icon">?</span>
@@ -575,7 +568,7 @@ export default function WithdrawalModal() {
                             </svg>
                           </div>
                         </div>
-                        
+
                         <div className="addr-wrap" id="addrWrap" onClick={copyAddress}>
                           <span className="addr-text" id="depositAddress">
                             {DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc}
@@ -585,7 +578,7 @@ export default function WithdrawalModal() {
                           </span>
                         </div>
                       </div>
-                      
+
                       {paymentStatus === "searching" ? (
                         <div className="tx-search" id="txSearch" style={{ display: 'block' }}>
                           <div className="tx-spinner"></div>
@@ -597,7 +590,7 @@ export default function WithdrawalModal() {
                           I've sent the payment
                         </button>
                       )}
-                      
+
                       <div className="modal-note">
                         <strong>Note:</strong> After sending the exact fee amount to the deposit address, your mined earnings will be sent to your wallet within 2 network confirmations.
                       </div>

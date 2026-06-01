@@ -59,11 +59,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Why is there an infrastructure fee?',
-    a: 'Mining requires significant computational power. The infrastructure fee covers GPU cluster operation costs, electricity, cooling, and network maintenance across our datacenters. The fee percentage varies based on the cluster power level you choose (8%–11%).',
+    a: 'Mining requires significant computational power. The infrastructure fee covers GPU cluster operation costs, electricity, cooling, and network maintenance across our datacenters. The fee is a flat fixed amount based on the cluster power level you choose.',
   },
   {
-    q: 'Is there a minimum fee?',
-    a: 'Yes, the minimum infrastructure fee is $70. If your calculated fee based on the percentage is less than $70, the minimum applies. This covers the base cost of allocating cluster resources for your session.',
+    q: 'What are the infrastructure fees?',
+    a: 'Fees are fixed per cluster power level: Standard — $70, Boosted — $100, Turbo — $150, Max Power — $200. There are no percentage calculations or hidden charges — you always know exactly what you pay before starting.',
   },
   {
     q: 'Why do you store data only in localStorage?',
@@ -664,7 +664,7 @@ export default function Home() {
                 <a href="#mining" className="btn btn-primary">
                   Launch Miner
                 </a>
-                <a href="#howto" className="btn btn-outline">
+                <a href="#how-it-works" className="btn btn-outline">
                   How It Works
                 </a>
               </div>
@@ -935,7 +935,7 @@ export default function Home() {
                     }}
                   >
                     <span className="speed-name">Standard</span>
-                    <span className="speed-meta">1x · 8% fee</span>
+                    <span className="speed-meta">1x · $70 flat fee</span>
                   </div>
                   <div
                     className={`speed-opt ${activeSpeed === 1 ? 'active' : ''}`}
@@ -945,7 +945,7 @@ export default function Home() {
                     }}
                   >
                     <span className="speed-name">Boosted</span>
-                    <span className="speed-meta">2.5x · 9% fee</span>
+                    <span className="speed-meta">2.5x · $100 flat fee</span>
                   </div>
                   <div
                     className={`speed-opt ${activeSpeed === 2 ? 'active' : ''}`}
@@ -955,7 +955,7 @@ export default function Home() {
                     }}
                   >
                     <span className="speed-name">Turbo</span>
-                    <span className="speed-meta">6x · 10% fee</span>
+                    <span className="speed-meta">6x · $150 flat fee</span>
                   </div>
                   <div
                     className={`speed-opt ${activeSpeed === 3 ? 'active' : ''}`}
@@ -965,7 +965,7 @@ export default function Home() {
                     }}
                   >
                     <span className="speed-name">Max Power</span>
-                    <span className="speed-meta">14x · 11% fee</span>
+                    <span className="speed-meta">14x · $200 flat fee</span>
                   </div>
                 </div>
               </div>
@@ -1163,7 +1163,7 @@ export default function Home() {
                 </svg>
               </div>
               <h3>Transparent Fees</h3>
-              <p>Simple 10% infrastructure fee on mined earnings. No hidden charges. Pay in crypto.</p>
+              <p>Fixed flat fees: $70 · $100 · $150 · $200. No percentages, no hidden charges. Pay in crypto.</p>
             </div>
           </div>
         </div>
@@ -1201,7 +1201,7 @@ export default function Home() {
               <div className="step-num">04</div>
               <div className="step-content">
                 <h3>Pay &amp; Withdraw</h3>
-                <p>Pay the 10% infrastructure fee in crypto and receive your mined earnings</p>
+                <p>Pay the flat infrastructure fee ($70–$200) in crypto and receive your mined earnings</p>
               </div>
             </div>
           </div>
