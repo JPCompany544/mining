@@ -750,8 +750,9 @@ export default function Home() {
                   background: rgba(255,255,255,0.05);
                 }
                 .coin-chip.active {
-                  background: var(--accent-dim);
+                  background: rgba(236, 117, 5, 0.15);
                   border-color: var(--accent);
+                  box-shadow: 0 0 15px rgba(236, 117, 5, 0.2), inset 0 0 10px rgba(236, 117, 5, 0.1);
                 }
                 .coin-chip img {
                   width: 28px;
