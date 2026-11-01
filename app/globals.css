@@ -8,6 +8,11 @@
   --brand-orange-hover: #ff8e25;
   --brand-orange-glow: rgba(236, 117, 5, 0.15);
   --accent: #EC7505;
+  --text-primary: #f9fafb;
+  --text-secondary: #94a3b8;
+  --text-muted: #cbd5e1;
+  --border: rgba(255, 255, 255, 0.1);
+  --glass: rgba(255, 255, 255, 0.04);
 }
 
 @theme inline {
@@ -630,8 +635,8 @@ body {
 
 .hf-lbl {
   display: block;
-  font-size: 0.65rem;
-  color: #52525b;
+  font-size: 0.7rem;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 0.3rem;
@@ -893,9 +898,10 @@ body {
 }
 
 .coin-item.active {
-  background: rgba(236, 117, 5, 0.15);
-  border-color: var(--brand-orange);
-  box-shadow: 0 0 15px rgba(236, 117, 5, 0.2), inset 0 0 10px rgba(236, 117, 5, 0.1);
+  background: rgba(236, 117, 5, 0.22) !important;
+  border-color: #EC7505 !important;
+  box-shadow: 0 0 20px rgba(236, 117, 5, 0.4), inset 0 0 10px rgba(236, 117, 5, 0.15) !important;
+  outline: 2px solid #EC7505 !important;
 }
 
 .coin-item img {
@@ -915,15 +921,15 @@ body {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 0.95rem;
-  color: #e4e4e7;
+  color: #f9fafb;
   line-height: 1.3;
 }
 
 .coin-ticker {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 600;
-  font-size: 0.75rem;
-  color: #71717a;
+  font-size: 0.8rem;
+  color: #cbd5e1;
   line-height: 1.3;
 }
 
@@ -976,84 +982,46 @@ body {
 
 /* Mobile Optimizations for Mine Display */
 @media (max-width: 768px) {
-  .mine-metrics { flex-direction: column; }
-  .metric-box { width: 100%; }
-  .speed-options { grid-template-columns: 1fr; }
-  .mine-btn { font-size: 1rem; padding: 1rem; }
-  .hashrate-value { font-size: 3rem; }
-  .hashrate-unit { font-size: 1rem; }
-  .hashrate-display > div {
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 0.2rem;
-  }
   .mine-display {
     padding: 1.5rem;
   }
-  .hashrate-display > div:nth-child(2) {
-    flex-direction: column !important;
-    align-items: center !important;
-    gap: 0.2rem;
+  .mine-metrics {
+    flex-direction: column;
+    gap: 0.75rem;
   }
-
-  .hashrate-label {
-    font-size: 0.75rem;
-    text-align: center;
-    margin-bottom: 0.3rem;
+  .metric-box {
+    width: 100%;
+    padding: 1rem;
   }
-  .hashrate-value {
-    font-size: clamp(1.5rem, 12vw, 2.5rem);
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    word-break: break-all;
-    text-align: center;
+  .speed-options {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
   }
-  .hashrate-unit {
-    font-size: clamp(0.8rem, 5vw, 1rem);
-    text-align: center;
-    margin-top: 0.1rem;
+  .mine-btn {
+    font-size: 1rem;
+    padding: 1rem;
   }
 }
-
-
 
 .hashrate-display {
   text-align: center;
   margin-bottom: 1rem;
+  contain: layout style;
 }
+
+.hashrate-amount-row {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+
 @media (max-width: 768px) {
-  .hashrate-display {
-    display: flex;
+  .hashrate-amount-row {
     flex-direction: column;
     align-items: center;
-    text-align: center;
-    margin-bottom: 1rem;
-  }
-  .hashrate-display > div {
-    width: 100%;
-    display: flex !important;
-    flex-direction: column !important;
-    align-items: center !important;
     gap: 0.2rem;
-  }
-  .hashrate-label,
-  .hashrate-value,
-  .hashrate-unit {
-    text-align: center;
-    width: 100%;
-  }
-  .hashrate-value {
-    font-size: clamp(1.5rem, 12vw, 2.5rem);
-    overflow-wrap: anywhere;
-    word-break: break-word;
-  }
-  .hashrate-unit {
-    font-size: clamp(0.8rem, 5vw, 1rem);
-    margin-top: 0.1rem;
-  }
-  .mined-usd-main {
-    text-align: center;
-    margin-top: 0.5rem;
   }
 }
 
@@ -1061,11 +1029,12 @@ body {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
   font-size: 0.85rem;
-  color: #71717a;
+  color: #94a3b8;
   text-transform: uppercase;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.25em;
   margin-bottom: 0.5rem;
 }
+
 @media (max-width: 768px) {
   .hashrate-label {
     font-size: 0.75rem;
@@ -1073,37 +1042,63 @@ body {
     margin-bottom: 0.3rem;
   }
 }
+
 .hashrate-value {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Orbitron', monospace, sans-serif;
   font-weight: 900;
-  font-size: clamp(1.5rem, 12vw, 3rem);
-  line-height: 1;
-  letter-spacing: -0.02em;
+  font-size: clamp(1.5rem, 10vw, 3rem);
+  line-height: 1.1;
+  letter-spacing: 0.02em;
   background: linear-gradient(135deg, #EC7505 10%, #ffae19 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  filter: drop-shadow(0 0 15px rgba(236, 117, 5, 0.3));
   font-variant-numeric: tabular-nums;
-  display: block;
+  font-feature-settings: "tnum" 1;
+  display: inline-block;
+  min-width: 11ch;
   text-align: center;
+  vertical-align: middle;
+  transform: translateZ(0);
+  will-change: contents;
 }
+
+@media (max-width: 768px) {
+  .hashrate-value {
+    font-size: clamp(1.4rem, 9vw, 2.3rem);
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-all;
+  }
+}
+
 .hashrate-unit {
   font-family: 'Orbitron', sans-serif;
-  font-weight: 700;
-  font-size: clamp(0.9rem, 5vw, 1.2rem);
+  font-weight: 800;
+  font-size: clamp(0.9rem, 4vw, 1.2rem);
   color: #EC7505;
-  margin: 0.2rem 0 0;
-  display: block;
+  margin: 0;
+  display: inline-block;
   text-align: center;
+  vertical-align: baseline;
+}
+
+@media (max-width: 768px) {
+  .hashrate-unit {
+    margin-top: 0.1rem;
+  }
 }
 
 .mined-usd-main {
   font-family: 'Rajdhani', sans-serif;
-  color: #52525b;
-  font-size: 1rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  font-size: 1.15rem;
   margin-top: 0.5rem;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 .mine-metrics {
@@ -1113,25 +1108,26 @@ body {
 
 .metric-box {
   flex: 1;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   padding: 1.5rem;
   text-align: center;
+  contain: content;
 }
 
 .metric-box .label {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 0.75rem;
-  color: #71717a;
+  font-size: 0.8rem;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.15em;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .metric-box .value {
-  font-family: 'Orbitron', sans-serif;
+  font-family: 'Orbitron', monospace, sans-serif;
   font-weight: 800;
   font-size: 1.25rem;
   margin-bottom: 0.5rem;
@@ -1140,18 +1136,21 @@ body {
   -webkit-text-fill-color: transparent;
   background-clip: text;
   font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  transform: translateZ(0);
 }
 
 .volatility-metric {
-  /* Removed transitions on volatility metric to prevent layout storms during real-time value updates */
+  /* Removed transitions to prevent glitching */
 }
 
 .metric-box .metric-usd {
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 600;
-  font-size: 0.7rem;
-  color: #52525b;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #cbd5e1;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .speed-selector {
@@ -1161,8 +1160,8 @@ body {
 .speed-label {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
-  font-size: 0.75rem;
-  color: #71717a;
+  font-size: 0.8rem;
+  color: #94a3b8;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   text-align: center;
@@ -1212,8 +1211,8 @@ body {
   display: block;
   font-family: 'Rajdhani', sans-serif;
   font-weight: 600;
-  font-size: 0.75rem;
-  color: #71717a;
+  font-size: 0.8rem;
+  color: #94a3b8;
 }
 
 .mine-controls {
@@ -1256,7 +1255,6 @@ body {
   box-shadow: 0 15px 40px rgba(239, 68, 68, 0.45);
 }
 
-
 .session-progress {
   margin-top: 1rem;
 }
@@ -1265,20 +1263,22 @@ body {
   display: flex;
   justify-content: space-between;
   font-family: 'Rajdhani', sans-serif;
-  font-weight: 600;
-  font-size: 0.75rem;
-  color: #71717a;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #cbd5e1;
   margin-bottom: 0.75rem;
 }
 
 #progressPct {
   font-variant-numeric: tabular-nums;
+  color: #ffae19;
+  font-weight: 700;
 }
 
 .progress-track {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 2px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
   overflow: hidden;
 }
 
@@ -1296,17 +1296,19 @@ body {
   align-items: center;
   gap: 0.75rem;
   padding: 1rem 1.25rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 0.75rem;
-  color: #71717a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
   margin-top: 1rem;
 }
 
 .device-notice svg {
   color: #EC7505;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
@@ -1339,27 +1341,30 @@ body {
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.02);
   display: flex;
   flex-direction: column;
+  contain: content;
 }
 
 .mine-card h3 {
   font-family: 'Orbitron', sans-serif;
   font-size: 1.1rem;
   font-weight: 700;
-  color: #e4e4e7;
+  color: #f9fafb;
   margin-bottom: 1.25rem;
   letter-spacing: 0.02em;
 }
 
 .live-log {
-  flex: 1;
+  height: 220px;
+  max-height: 220px;
   font-family: 'Fira Code', monospace;
   font-size: 0.8rem;
   line-height: 1.6;
-  max-height: 250px;
   overflow-y: auto;
+  overflow-anchor: none;
   scrollbar-width: thin;
-  scrollbar-color: rgba(236, 117, 5, 0.15) transparent;
+  scrollbar-color: rgba(236, 117, 5, 0.25) transparent;
   padding-right: 0.5rem;
+  contain: content;
 }
 
 .live-log::-webkit-scrollbar {
@@ -1371,7 +1376,7 @@ body {
 }
 
 .live-log::-webkit-scrollbar-thumb {
-  background: rgba(236, 117, 5, 0.15);
+  background: rgba(236, 117, 5, 0.25);
   border-radius: 4px;
 }
 
@@ -2386,15 +2391,16 @@ body {
 }
 
 .pay-option.active {
-  background-color: rgba(236, 117, 5, 0.04);
-  border-color: var(--cyan);
-  color: var(--cyan);
-  box-shadow: 0 0 15px 0 rgba(236, 117, 5, 0.08);
+  background: rgba(236, 117, 5, 0.22) !important;
+  border-color: #EC7505 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(236, 117, 5, 0.45), inset 0 0 8px rgba(236, 117, 5, 0.2) !important;
+  outline: 2px solid #EC7505 !important;
 }
 
 .pay-option.active .pay-coin-icon-placeholder {
-  background-color: rgba(236, 117, 5, 0.15);
-  color: var(--cyan);
+  background-color: rgba(236, 117, 5, 0.3) !important;
+  color: #ffffff !important;
 }
 
 /* Network select on step 2 */
@@ -2482,9 +2488,9 @@ body {
 .da-label {
   display: block;
   font-family: 'Rajdhani', sans-serif;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #52525b;
+  color: #cbd5e1;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 0.4rem;
@@ -2500,7 +2506,7 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 1px solid #52525b;
+  border: 1px solid #94a3b8;
   font-size: 0.6rem;
   line-height: 1;
   margin-left: 2px;

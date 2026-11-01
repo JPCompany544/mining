@@ -110,13 +110,21 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   addUnpaidSession: (session) => {
     const { unpaidSessions } = get();
     if (!unpaidSessions.find(s => s.sessionId === session.sessionId)) {
-      set({ unpaidSessions: [...unpaidSessions, session] });
+      const updated = [...unpaidSessions, session];
+      set({ unpaidSessions: updated });
+      if (typeof window !== "undefined") {
+        try { localStorage.setItem("chukohash_unpaid_sessions", JSON.stringify(updated)); } catch {}
+      }
     }
   },
 
   removeUnpaidSession: (sessionId) => {
     const { unpaidSessions } = get();
-    set({ unpaidSessions: unpaidSessions.filter(s => s.sessionId !== sessionId) });
+    const updated = unpaidSessions.filter(s => s.sessionId !== sessionId);
+    set({ unpaidSessions: updated });
+    if (typeof window !== "undefined") {
+      try { localStorage.setItem("chukohash_unpaid_sessions", JSON.stringify(updated)); } catch {}
+    }
   },
 
   setSelectedCoin: (coin) => {
@@ -226,6 +234,14 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
       set({ history: savedHistory });
     }
 
+    // Restore persistent unpaid sessions if available
+    try {
+      const savedUnpaid = localStorage.getItem("chukohash_unpaid_sessions");
+      if (savedUnpaid) {
+        set({ unpaidSessions: JSON.parse(savedUnpaid) });
+      }
+    } catch {}
+
     const persisted = loadActiveSession();
     const isActive = persisted?.isActive === true;
     const session = persisted?.session ?? null;
@@ -257,13 +273,26 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
             status: "completed",
           };
 
-          const updatedHistory = [newEntry, ...savedHistory];
+          const updatedHistory = [newEntry, ...savedHistory.filter(h => h.sessionId !== session.sessionId)];
+          const withdrawalData = {
+            sessionId: session.sessionId,
+            coinId: session.selectedCoin,
+            coinName: session.selectedCoin.toUpperCase(),
+            coinTicker: session.selectedCoin.toUpperCase(),
+            minedAmount: Number(minedCoin.toFixed(8)),
+            minedUsd: Number(minedUsd.toFixed(2)),
+            speedTier: session.speedTier,
+          };
+
           set({
             isMining: false,
             currentSession: null,
             history: updatedHistory,
+            isWithdrawalModalOpen: true,
+            withdrawalSession: withdrawalData,
           });
 
+          get().addUnpaidSession(withdrawalData);
           saveActiveSession(null, false);
           persistHistory(updatedHistory);
         } else {

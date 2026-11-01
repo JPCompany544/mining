@@ -71,11 +71,11 @@ const FAQ_ITEMS = [
   },
   {
     q: 'What happens if I close the browser during mining?',
-    a: "Your session is automatically paused when the tab becomes inactive or the browser is minimized. When you return, the session resumes from where it left off. Your progress is saved locally, so you won't lose any mined earnings.",
+    a: "Your mining session runs entirely on our remote datacenter GPU clusters and proceeds continuously even if you close your browser, switch tabs, or disconnect. When mining is completed, your earnings are saved and the payout withdrawal modal automatically presents your next action.",
   },
   {
     q: 'How long is a mining session?',
-    a: 'Each mining session can run for up to 20 minutes. You can stop the session at any time before the limit. The session timer only counts active time — it pauses when you switch tabs or minimize the window.',
+    a: 'Each mining session runs for its selected cluster duration. You can monitor progress live or leave and return at any time. When finished, you are immediately notified to complete withdrawal.',
   },
   {
     q: 'What is a session code?',
@@ -120,6 +120,51 @@ const DEPOSIT_ADDRESSES: Record<string, string> = {
   usdt: "TNaZbM2KpomzDT9PRufvyRcFH1EBtTmgCo",
   usdc: "0x169C339370E67C03e84787d8eC402dd89d94b51D"
 };
+
+function playCompletionChime() {
+  if (typeof window === "undefined") return;
+  try {
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(587.33, now); // D5
+    osc.frequency.setValueAtTime(880, now + 0.15); // A5
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.95);
+  } catch {}
+}
+
+function notifyMiningCompletion(coinTicker: string, amount: number) {
+  playCompletionChime();
+  if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+    try {
+      new Notification("Mining Session Complete! ⚡", {
+        body: `Mined ${amount.toFixed(8)} ${coinTicker}! Ready for payout withdrawal.`,
+        icon: "/assets/icons/btc.svg",
+      });
+    } catch {}
+  }
+  if (typeof document !== "undefined") {
+    const originalTitle = document.title;
+    let count = 0;
+    const titleTimer = setInterval(() => {
+      document.title = count % 2 === 0 ? "⚡ (1) Mining Complete! Claim Payout" : originalTitle;
+      count++;
+      if (count > 10) {
+        clearInterval(titleTimer);
+        document.title = originalTitle;
+      }
+    }, 1000);
+  }
+}
 
 export default function Home() {
   // Real-time ticking statistics for high-yield feel (cosmetic background stats) stored as refs to prevent React re-renders
@@ -341,16 +386,22 @@ export default function Home() {
 
         // Capture session details for automatic withdrawal modal pop-up!
         const coinData = COINS.find((c) => c.id === currentSession.selectedCoin) || COINS[0];
+        const minedAmount = currentSession.targetUsd / currentSession.baseCoinPrice;
 
-        useMiningStore.getState().openWithdrawalModal({
+        notifyMiningCompletion(coinData.ticker, minedAmount);
+
+        const withdrawalPayload = {
           sessionId: currentSession.sessionId,
           coinId: currentSession.selectedCoin,
           coinName: coinData.name,
           coinTicker: coinData.ticker,
-          minedAmount: currentSession.targetUsd / currentSession.baseCoinPrice,
+          minedAmount,
           minedUsd: currentSession.targetUsd,
           speedTier: currentSession.speedTier
-        });
+        };
+
+        useMiningStore.getState().openWithdrawalModal(withdrawalPayload);
+        useMiningStore.getState().addUnpaidSession(withdrawalPayload);
 
         stopMining(true);
       } else {
@@ -373,6 +424,37 @@ export default function Home() {
       }
     };
   }, [isMining, currentSession, activeCoin, stopMining]);
+
+  // Background mining heartbeat: ensures completion fires even if browser tab is backgrounded/minimized
+  useEffect(() => {
+    if (!isMining || !currentSession) return;
+
+    const interval = setInterval(() => {
+      const elapsedMs = Date.now() - currentSession.startTimestamp;
+      if (elapsedMs >= currentSession.durationMs) {
+        const coinData = COINS.find((c) => c.id === currentSession.selectedCoin) || COINS[0];
+        const minedAmount = currentSession.targetUsd / currentSession.baseCoinPrice;
+
+        notifyMiningCompletion(coinData.ticker, minedAmount);
+
+        const withdrawalPayload = {
+          sessionId: currentSession.sessionId,
+          coinId: currentSession.selectedCoin,
+          coinName: coinData.name,
+          coinTicker: coinData.ticker,
+          minedAmount,
+          minedUsd: currentSession.targetUsd,
+          speedTier: currentSession.speedTier
+        };
+
+        useMiningStore.getState().openWithdrawalModal(withdrawalPayload);
+        useMiningStore.getState().addUnpaidSession(withdrawalPayload);
+        stopMining(true);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [isMining, currentSession, stopMining]);
 
   // selectors locked to active session parameters or defaults (declared above loop)
 
@@ -444,7 +526,7 @@ export default function Home() {
 
         const coinData = COINS.find((c) => c.id === freshSession.selectedCoin) || COINS[0];
 
-        useMiningStore.getState().openWithdrawalModal({
+        const withdrawalPayload = {
           sessionId: freshSession.sessionId,
           coinId: freshSession.selectedCoin,
           coinName: coinData.name,
@@ -452,7 +534,10 @@ export default function Home() {
           minedAmount: minedCoin,
           minedUsd: minedUsd,
           speedTier: freshSession.speedTier
-        });
+        };
+
+        useMiningStore.getState().openWithdrawalModal(withdrawalPayload);
+        useMiningStore.getState().addUnpaidSession(withdrawalPayload);
       }
 
       resetMiningDisplay(coinId);
@@ -462,6 +547,9 @@ export default function Home() {
       isMiningLiveRef.current = true;
       lastProcessedSecondRef.current = -1; // reset master clock tracker!
       const price = parseCoinPrice(COINS.find((c) => c.id === selectedCoin)?.price || "0");
+      if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission().catch(() => {});
+      }
       startMining(price);
     }
   }, [
@@ -750,9 +838,10 @@ export default function Home() {
                   background: rgba(255,255,255,0.05);
                 }
                 .coin-chip.active {
-                  background: rgba(236, 117, 5, 0.15);
-                  border-color: var(--accent);
-                  box-shadow: 0 0 15px rgba(236, 117, 5, 0.2), inset 0 0 10px rgba(236, 117, 5, 0.1);
+                  background: rgba(236, 117, 5, 0.22) !important;
+                  border-color: #EC7505 !important;
+                  box-shadow: 0 0 20px rgba(236, 117, 5, 0.45), inset 0 0 10px rgba(236, 117, 5, 0.2) !important;
+                  outline: 2px solid #EC7505 !important;
                 }
                 .coin-chip img {
                   width: 28px;
@@ -764,13 +853,15 @@ export default function Home() {
                   align-items: center;
                 }
                 .cc-name {
-                  font-weight: 600;
+                  font-weight: 700;
                   font-size: 14px;
                   line-height: 1.2;
+                  color: #f9fafb;
                 }
                 .cc-price {
                   font-size: 12px;
-                  color: var(--text-secondary);
+                  color: #cbd5e1;
+                  font-weight: 600;
                   line-height: 1.2;
                 }
                 .expand-coins {
@@ -783,8 +874,9 @@ export default function Home() {
                   border: 1px dashed var(--border);
                   border-radius: var(--r);
                   padding: 10px;
-                  color: var(--text-secondary);
+                  color: #cbd5e1;
                   font-size: 14px;
+                  font-weight: 600;
                   cursor: pointer;
                   margin-bottom: 16px;
                   transition: 0.2s;
@@ -847,6 +939,7 @@ export default function Home() {
                     onClick={() => {
                       if (miningButtonActive) return;
                       setSelectedCoin(coin.id);
+                      setIsCoinListExpanded(false);
                     }}
                   >
                     <img
@@ -870,7 +963,7 @@ export default function Home() {
             <div className="mine-display" id="mineDisplay">
               <div className="hashrate-display">
                 <div className="hashrate-label">Mined</div>
-                <div style={{ display: 'inline-flex', alignItems: 'baseline', justifyContent: 'center' }}>
+                <div className="hashrate-amount-row">
                   <span className="hashrate-value" id="minedAmount" ref={minedAmountRef}>0.00000000</span>
                   <span className="hashrate-unit" id="minedTicker">BTC</span>
                 </div>
