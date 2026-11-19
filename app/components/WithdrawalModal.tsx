@@ -1,636 +1,380 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useMiningStore } from "../store/useMiningStore";
-import { MINING_MODES } from "../config/mining";
+import { COINS } from "../config/coins";
+import { PastSession } from "../config/mining";
 import Portal from "./Portal";
 
-// Static config constants self-contained within the isolated modal component
-const COINS = [
-  { id: 'btc', name: 'Bitcoin', ticker: 'BTC', price: '$77,958', change: '+1.6%', up: true, icon: '/assets/bitcoin.svg' },
-  { id: 'eth', name: 'Ethereum', ticker: 'ETH', price: '$2,143', change: '+1.4%', up: true, icon: '/assets/ethereum.svg' },
-  { id: 'bnb', name: 'BNB', ticker: 'BNB', price: '$653.79', change: '+2.2%', up: true, icon: '/assets/bnb.jpeg' },
-  { id: 'sol', name: 'Solana', ticker: 'SOL', price: '$86.96', change: '+3.2%', up: true },
-  { id: 'ton', name: 'Toncoin', ticker: 'TON', price: '$2.06', change: '+5.9%', up: true },
-  { id: 'xmr', name: 'Monero', ticker: 'XMR', price: '$403.86', change: '+2.4%', up: true },
-  { id: 'doge', name: 'Dogecoin', ticker: 'DOGE', price: '$0.106', change: '+3.0%', up: true },
-  { id: 'trx', name: 'TRON', ticker: 'TRX', price: '$0.359', change: '+1.2%', up: true },
-  { id: 'ada', name: 'Cardano', ticker: 'ADA', price: '$0.251', change: '+1.1%', up: true },
-  { id: 'dot', name: 'Polkadot', ticker: 'DOT', price: '$1.29', change: '+4.4%', up: true },
-  { id: 'usdt', name: 'Tether', ticker: 'USDT', price: '$0.999', change: '+0.0%', up: true },
-  { id: 'usdc', name: 'USD Coin', ticker: 'USDC', price: '$1.000', change: '-0.0%', up: false },
-  { id: 'ltc', name: 'Litecoin', ticker: 'LTC', price: '$54.39', change: '+1.1%', up: true },
-  { id: 'xrp', name: 'Ripple', ticker: 'XRP', price: '$1.38', change: '+1.5%', up: true },
-];
-
-const COIN_NETWORKS: Record<string, string[]> = {
-  btc: ["Bitcoin Network", "Lightning Network"],
-  eth: ["ERC-20", "Arbitrum", "Optimism", "Base"],
-  bnb: ["BSC (BEP-20)", "opBNB"],
-  sol: ["Solana Network"],
-  ton: ["TON Network"],
-  trx: ["TRC-20"],
-  usdt: ["TRC-20", "ERC-20", "BEP-20", "SOLANA"],
-  usdc: ["ERC-20", "SOLANA", "BEP-20"]
-};
-
-const DEPOSIT_ADDRESSES: Record<string, string> = {
-  btc: "bc1qagvkz7ad8uqp62hwd5pztgxv82zan3wcjr2ft4",
-  eth: "0x169C339370E67C03e84787d8eC402dd89d94b51D",
-  bnb: "0x169C339370E67C03e84787d8eC402dd89d94b51D",
-  sol: "3vwAi8FEGcerD4yfQHBFFKx4FvRzPDNMGeVRZe3qoEzj",
-  ton: "UQDnHAIjBPfEpksvRCWKU0P3KTxwOYrmKubD4078XORCetRm",
-  trx: "TNaZbM2KpomzDT9PRufvyRcFH1EBtTmgCo",
-  xmr: "3vwAi8FEGcerD4yfQHBFFKx4FvRzPDNMGeVRZe3qoEzj",
-  ltc: "ltc1qcexcxae3evs8rt7ctz6vdnwwllsz39aqwrc3ee",
-  xrp: "rhJwTZNi8j6E7WrkuqPrUtEw3usRXhXD6L",
-  usdt: "TNaZbM2KpomzDT9PRufvyRcFH1EBtTmgCo",
-  usdc: "0x169C339370E67C03e84787d8eC402dd89d94b51D"
-};
-
 export default function WithdrawalModal() {
-  // Zustand Store Integration
   const isOpen = useMiningStore((s) => s.isWithdrawalModalOpen);
   const session = useMiningStore((s) => s.withdrawalSession);
   const close = useMiningStore((s) => s.closeWithdrawalModal);
-  const addUnpaidSession = useMiningStore((s) => s.addUnpaidSession);
   const removeUnpaidSession = useMiningStore((s) => s.removeUnpaidSession);
 
-  // Local Modal States
-  const [modalStep, setModalStep] = useState(1);
-  const [walletInput, setWalletInput] = useState("");
-  const [walletError, setWalletError] = useState("");
-  const [memoInput, setMemoInput] = useState("");
-  const [confirmedAddress, setConfirmedAddress] = useState("");
-  const [payTab, setPayTab] = useState<"deposit" | "walletconnect">("deposit");
-  const [selectedPayCoin, setSelectedPayCoin] = useState("btc");
-  const [selectedNetwork, setSelectedNetwork] = useState("");
-  const [paymentStatus, setPaymentStatus] = useState<"idle" | "searching" | "success" | "error">("idle");
-  const [txDots, setTxDots] = useState("");
+  // Form states
+  const [walletAddress, setWalletAddress] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [memoTag, setMemoTag] = useState("");
+  const [addressError, setAddressError] = useState("");
+  const [amountError, setAmountError] = useState("");
 
-  // Animation States
+  // Submission / success state
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [submittedData, setSubmittedData] = useState<{
+    amount: string;
+    address: string;
+    coinTicker: string;
+    usdValue: string;
+    txId: string;
+  } | null>(null);
+
+  // Animation states
   const [mounted, setMounted] = useState(false);
   const [animateClass, setAnimateClass] = useState(false);
-
-  // DOM and Focus tracking Refs
   const modalRef = useRef<HTMLDivElement>(null);
-  const previousActiveElement = useRef<HTMLElement | null>(null);
 
-  // Handle transition timing for mounting/unmounting
+  // Active coin data
+  const coinData = useMemo(() => {
+    if (!session) return COINS[0];
+    return COINS.find((c) => c.id === session.coinId) || {
+      id: session.coinId,
+      name: session.coinName,
+      ticker: session.coinTicker,
+      price: "$0.00",
+      change: "+0.0%",
+      up: true,
+      icon: `/assets/icons/${session.coinId}.svg`,
+    };
+  }, [session]);
+
+  const maxCoinAmount = session?.minedAmount ? Number(session.minedAmount.toFixed(8)) : 0;
+  const maxUsdValue = session?.minedUsd ? session.minedUsd : 0;
+
+  // Initialize amount to max when modal opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && session) {
       setMounted(true);
-      // Wait for next frame to trigger CSS transitions
-      const frame = requestAnimationFrame(() => {
-        setAnimateClass(true);
-      });
+      const frame = requestAnimationFrame(() => setAnimateClass(true));
+      setWithdrawAmount(session.minedAmount.toFixed(8));
+      setWalletAddress("");
+      setMemoTag("");
+      setAddressError("");
+      setAmountError("");
+      setIsSuccess(false);
+      setIsSubmitting(false);
+      setSubmittedData(null);
       return () => cancelAnimationFrame(frame);
     } else {
       setAnimateClass(false);
-      const timer = setTimeout(() => {
-        setMounted(false);
-        // Reset steps when fully closed
-        setModalStep(1);
-        setWalletInput("");
-        setWalletError("");
-        setMemoInput("");
-        setConfirmedAddress("");
-        setPayTab("deposit");
-        setSelectedPayCoin("btc");
-        setPaymentStatus("idle");
-      }, 300); // matches globals.css slideUp transition
+      const timer = setTimeout(() => setMounted(false), 250);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, session]);
 
-  // Synchronize network dependencies when coin changes
-  useEffect(() => {
+  // Handle setting MAX amount
+  const handleSetMax = () => {
     if (session) {
-      const networks = COIN_NETWORKS[session.coinId];
-      setSelectedNetwork(networks ? networks[0] : "");
-    }
-  }, [session?.coinId]);
-
-  useEffect(() => {
-    const networks = COIN_NETWORKS[selectedPayCoin];
-    setSelectedNetwork(networks ? networks[0] : "");
-  }, [selectedPayCoin]);
-
-  // Lock scrolling, capture focus, and restore focus on dismiss
-  useEffect(() => {
-    if (isOpen) {
-      previousActiveElement.current = document.activeElement as HTMLElement;
-      document.body.style.overflow = "hidden";
-
-      // Auto-focus input on open
-      setTimeout(() => {
-        const input = modalRef.current?.querySelector("input");
-        if (input) input.focus();
-      }, 100);
-    } else {
-      document.body.style.overflow = "";
-      if (previousActiveElement.current) {
-        previousActiveElement.current.focus();
-      }
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
-
-  // Listen for Escape key and trap Focus cycle
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (!isOpen) return;
-
-      if (e.key === "Escape") {
-        if (session && paymentStatus !== "success") {
-          addUnpaidSession(session);
-        }
-        close();
-        return;
-      }
-
-      if (e.key === "Tab" && modalRef.current) {
-        const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-          'a[href], area[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [tabindex="0"]'
-        );
-        if (focusable.length === 0) return;
-
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            last.focus();
-            e.preventDefault();
-          }
-        } else {
-          if (document.activeElement === last) {
-            first.focus();
-            e.preventDefault();
-          }
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, close]);
-
-  // --- ACTIONS & CALCULATIONS ---
-  const getPayAmount = useCallback(() => {
-    if (!session) return "0.000000";
-    const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
-    const feeUsd = MINING_MODES[modeKey].fixedFeeUsd;
-
-    const payCoin = COINS.find(c => c.id === selectedPayCoin);
-    if (!payCoin) return "0.000000";
-    const price = parseFloat(payCoin.price.replace(/[^0-9.]/g, ''));
-    if (price === 0) return "0.000000";
-
-    return (feeUsd / price).toFixed(6);
-  }, [session, selectedPayCoin]);
-
-  const copyAmount = useCallback((amount: string, el: HTMLElement) => {
-    navigator.clipboard.writeText(amount);
-
-    const tooltip = el.querySelector(".da-tooltip");
-    if (tooltip) {
-      const prevText = tooltip.textContent;
-      tooltip.textContent = "Copied!";
-      setTimeout(() => {
-        tooltip.textContent = prevText;
-      }, 2000);
-    }
-  }, []);
-
-  const copyAddress = useCallback(() => {
-    const address = DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc;
-    navigator.clipboard.writeText(address);
-
-    const copyBtn = document.getElementById("copyBtn");
-    if (copyBtn) {
-      copyBtn.textContent = "Copied!";
-      copyBtn.classList.add("copied");
-      setTimeout(() => {
-        copyBtn.textContent = "Copy Address";
-        copyBtn.classList.remove("copied");
-      }, 2000);
-    }
-  }, [selectedPayCoin]);
-
-  const confirmWallet = useCallback(() => {
-    if (!walletInput.trim()) {
-      setWalletError("Wallet address is required.");
-      return;
-    }
-    if (walletInput.trim().length < 20) {
-      setWalletError("Invalid address. Must be at least 20 characters.");
-      return;
-    }
-
-    setConfirmedAddress(walletInput);
-    setModalStep(2);
-  }, [walletInput]);
-
-  const editWallet = useCallback(() => {
-    setModalStep(1);
-  }, []);
-
-  const iPaid = useCallback(() => {
-    setPaymentStatus("searching");
-    let count = 0;
-    const dotsInterval = setInterval(() => {
-      setTxDots(d => d.length >= 3 ? "" : d + ".");
-    }, 500);
-
-    setTimeout(() => {
-      clearInterval(dotsInterval);
-      setPaymentStatus("success");
-      if (session) {
-        removeUnpaidSession(session.sessionId);
-      }
-    }, 5000); // Smooth 5-second simulated verification loop
-  }, []);
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      if (session && paymentStatus !== "success") {
-        addUnpaidSession(session);
-      }
-      close();
+      setWithdrawAmount(session.minedAmount.toFixed(8));
+      setAmountError("");
     }
   };
 
-  const handleClose = () => {
-    if (session && paymentStatus !== "success") {
-      addUnpaidSession(session);
+  // Live calculated USD equivalent
+  const calculatedUsd = useMemo(() => {
+    const parsedAmount = parseFloat(withdrawAmount) || 0;
+    if (maxCoinAmount > 0 && maxUsdValue > 0) {
+      return (parsedAmount * (maxUsdValue / maxCoinAmount)).toFixed(2);
     }
+    const unitPrice = parseFloat(coinData.price.replace(/[^0-9.]/g, "")) || 0;
+    return (parsedAmount * unitPrice).toFixed(2);
+  }, [withdrawAmount, maxCoinAmount, maxUsdValue, coinData]);
+
+  // Handle Form Submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    let hasError = false;
+
+    const trimmedAddress = walletAddress.trim();
+    if (!trimmedAddress) {
+      setAddressError("Please enter your destination wallet address");
+      hasError = true;
+    } else if (trimmedAddress.length < 16) {
+      setAddressError("Address appears too short for a valid blockchain wallet");
+      hasError = true;
+    } else {
+      setAddressError("");
+    }
+
+    const parsedAmount = parseFloat(withdrawAmount);
+    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      setAmountError("Please enter a valid amount to withdraw");
+      hasError = true;
+    } else if (parsedAmount > maxCoinAmount * 1.0001) {
+      setAmountError(`Amount cannot exceed available mined balance (${maxCoinAmount.toFixed(8)})`);
+      hasError = true;
+    } else {
+      setAmountError("");
+    }
+
+    if (hasError || !session) return;
+
+    setIsSubmitting(true);
+
+    // Generate simulated tx hash
+    const txChars = "0123456789abcdef";
+    const randomHex = Array.from({ length: 16 }, () => txChars[Math.floor(Math.random() * txChars.length)]).join("");
+    const generatedTxId = `0x${randomHex}...`;
+
+    setTimeout(() => {
+      setIsSubmitting(false);
+      setIsSuccess(true);
+      setSubmittedData({
+        amount: parsedAmount.toFixed(8),
+        address: trimmedAddress,
+        coinTicker: session.coinTicker,
+        usdValue: calculatedUsd,
+        txId: generatedTxId,
+      });
+
+      // Save settlement to history in Zustand store
+      const today = new Date().toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+
+      const newHistoryEntry: PastSession = {
+        sessionId: session.sessionId,
+        coin: session.coinTicker,
+        amount: parsedAmount,
+        date: today,
+        speedTier: session.speedTier,
+        completedUsd: parseFloat(calculatedUsd),
+        startedAt: Date.now() - 3600000,
+        completedAt: Date.now(),
+        status: "completed",
+      };
+
+      const currentHistory = useMiningStore.getState().history;
+      useMiningStore.setState({
+        history: [newHistoryEntry, ...currentHistory.filter((h) => h.sessionId !== session.sessionId)],
+      });
+
+      removeUnpaidSession(session.sessionId);
+    }, 1200);
+  };
+
+  const handleModalClose = () => {
     close();
   };
 
-  // Exit cleanly if unmounted or details missing
   if (!mounted || !session) return null;
 
   return (
     <Portal>
       <div
         className={`modal-overlay ${animateClass ? "show" : ""}`}
-        onClick={handleBackdropClick}
+        onClick={handleModalClose}
         style={{
           opacity: animateClass ? 1 : 0,
           transition: "opacity 0.25s ease-out",
-          willChange: "opacity"
         }}
       >
         <div
           ref={modalRef}
-          className="modal"
-          tabIndex={-1}
+          className="modal clean-withdrawal-modal"
+          onClick={(e) => e.stopPropagation()}
           style={{
-            transform: animateClass ? "scale(1) translateY(0)" : "scale(0.95) translateY(20px)",
-            transition: "transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease-out",
+            transform: animateClass ? "scale(1) translateY(0)" : "scale(0.96) translateY(18px)",
+            transition: "transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.25s ease-out",
             opacity: animateClass ? 1 : 0,
-            willChange: "transform, opacity"
           }}
         >
-          <div className="modal-handle"></div>
-          <div className="modal-close" onClick={handleClose} aria-label="Close modal">×</div>
-          <h2>Withdraw Earnings</h2>
+          <button className="clean-modal-close" onClick={handleModalClose} aria-label="Close modal">
+            ✕
+          </button>
 
-          <div className="modal-session-code" id="modalSessionCode" style={{ display: 'inline-block' }}>
-            {session.sessionId}
-          </div>
-
-          {paymentStatus === "success" ? (
-            <div className="payment-success-screen">
-              <div className="success-icon-wrap">
-                <svg className="success-svg" viewBox="0 0 52 52">
-                  <circle className="success-circle" cx="26" cy="26" r="25" fill="none" />
-                  <path className="success-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" />
-                </svg>
+          {!isSuccess ? (
+            <div className="wm-content">
+              {/* Header */}
+              <div className="wm-header">
+                <span className="wm-badge">WITHDRAWAL REQUEST</span>
+                <h3 className="wm-title">Withdraw Mining Earnings</h3>
+                <p className="wm-desc">
+                  Transfer your mined cryptocurrency directly to your personal wallet address.
+                </p>
               </div>
-              <h3>Payment Confirmed!</h3>
-              <p className="success-desc">
-                Your infrastructure fee payment of <strong>{getPayAmount()} {selectedPayCoin.toUpperCase()}</strong> has been successfully received and matched to session <code>{session.sessionId}</code>.
-              </p>
-              <p className="success-sub">
-                We have initiated the transfer of <strong>{session.minedAmount.toFixed(8)} {session.coinTicker}</strong> to your wallet address:
-              </p>
-              <div className="success-wallet-box">{confirmedAddress}</div>
-              <p className="success-time-notice">
-                Your earnings will arrive in your wallet within 2 network confirmations (typically 5-15 minutes). You can monitor your payout status in the dashboard block explorer.
-              </p>
-              <button
-                className="btn btn-primary btn-success-close"
-                onClick={() => {
-                  setPaymentStatus("idle");
-                  handleClose();
-                }}
-              >
-                Back to Dashboard
-              </button>
-            </div>
-          ) : (
-            <>
-              <p className="subtitle">Your mining session has ended. Enter your wallet address to receive your earnings, then pay the infrastructure fee.</p>
 
-              {/* STEP 1: Wallet Address Form */}
-              {modalStep === 1 && (
-                <div className="modal-step" id="modalStep1" style={{ display: 'block' }}>
-                  <h3 className="modal-step-title">
-                    <span className="step-badge">1</span> Your Withdrawal Wallet
-                  </h3>
-                  <p className="modal-step-desc">
-                    Enter the wallet address where you want to receive your mined <strong id="feeMinedCoin">{session.coinTicker}</strong>
-                  </p>
+              {/* Mined Balance Banner */}
+              <div className="wm-balance-banner">
+                <div className="wmb-left">
+                  <img
+                    src={coinData.icon}
+                    alt={coinData.ticker}
+                    className="wmb-coin-icon"
+                    onError={(e) => {
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                  <div className="wmb-coin-details">
+                    <span className="wmb-label">Available Balance</span>
+                    <span className="wmb-coin-amount">
+                      {maxCoinAmount.toFixed(8)} {session.coinTicker}
+                    </span>
+                  </div>
+                </div>
+                <div className="wmb-right">
+                  <span className="wmb-usd">≈ ${maxUsdValue.toFixed(2)} USD</span>
+                  <span className="wmb-session-tag">Session: {session.sessionId}</span>
+                </div>
+              </div>
 
-                  {/* Network Selection for Coins with Multiple Networks */}
-                  {COIN_NETWORKS[session.coinId] && (
-                    <div className="withdraw-network-wrap" id="withdrawNetWrap" style={{ display: 'block' }}>
-                      <label className="memo-label">Select Network</label>
-                      <div className="withdraw-network-opts" id="withdrawNetOpts">
-                        {COIN_NETWORKS[session.coinId].map((network) => (
-                          <button
-                            key={network}
-                            type="button"
-                            className={`net-opt-btn ${selectedNetwork === network ? 'active' : ''}`}
-                            onClick={() => setSelectedNetwork(network)}
-                          >
-                            {network}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="wallet-input-wrap">
+              {/* Withdrawal Form */}
+              <form onSubmit={handleSubmit} className="wm-form">
+                {/* 1. Amount to Withdraw */}
+                <div className="wm-field-group">
+                  <div className="wm-field-label-row">
+                    <label htmlFor="withdrawAmountInput" className="wm-label">
+                      Amount to Withdraw
+                    </label>
+                    <span className="wm-sub-usd">≈ ${calculatedUsd} USD</span>
+                  </div>
+                  <div className="wm-input-wrap">
                     <input
+                      id="withdrawAmountInput"
+                      type="number"
+                      step="any"
+                      min="0"
+                      max={maxCoinAmount}
+                      value={withdrawAmount}
+                      onChange={(e) => {
+                        setWithdrawAmount(e.target.value);
+                        if (amountError) setAmountError("");
+                      }}
+                      placeholder="0.00000000"
+                      className="wm-input amount-input"
+                      required
+                    />
+                    <div className="wm-input-suffix">
+                      <span className="wm-ticker-badge">{session.coinTicker}</span>
+                      <button type="button" className="wm-max-btn" onClick={handleSetMax}>
+                        MAX
+                      </button>
+                    </div>
+                  </div>
+                  {amountError && <span className="wm-error-text">{amountError}</span>}
+                </div>
+
+                {/* 2. Destination Wallet Address */}
+                <div className="wm-field-group">
+                  <div className="wm-field-label-row">
+                    <label htmlFor="destinationWalletInput" className="wm-label">
+                      Destination {session.coinTicker} Wallet Address
+                    </label>
+                    <span className="wm-network-pill">{coinData.name} Network</span>
+                  </div>
+                  <div className="wm-input-wrap">
+                    <input
+                      id="destinationWalletInput"
                       type="text"
-                      className="wallet-input"
-                      id="walletInput"
-                      placeholder="Enter your wallet address..."
+                      value={walletAddress}
+                      onChange={(e) => {
+                        setWalletAddress(e.target.value);
+                        if (addressError) setAddressError("");
+                      }}
+                      placeholder={`Enter or paste your ${session.coinTicker} address...`}
+                      className="wm-input address-input"
                       autoComplete="off"
                       spellCheck="false"
-                      value={walletInput}
-                      onChange={(e) => {
-                        setWalletInput(e.target.value);
-                        if (e.target.value.trim().length > 0) {
-                          setWalletError("");
-                        }
-                      }}
+                      autoFocus
+                      required
                     />
-                    <div className="wallet-input-hint" id="walletHint">
-                      Paste your <span>{session.coinName}</span> wallet address
-                    </div>
-                    {walletError && (
-                      <div className="wallet-error" id="walletError" style={{ display: 'block' }}>
-                        {walletError}
-                      </div>
-                    )}
                   </div>
+                  {addressError ? (
+                    <span className="wm-error-text">{addressError}</span>
+                  ) : (
+                    <span className="wm-hint-text">
+                      Make sure your address is on the {coinData.name} network to prevent fund loss.
+                    </span>
+                  )}
+                </div>
 
-                  <div className="memo-input-wrap" id="memoWrap" style={{ display: 'block' }}>
-                    <label className="memo-label" id="memoLabel">
-                      Memo / Tag <span className="memo-optional">(optional)</span>
+                {/* 3. Optional Memo / Tag (for XRP/TON/BNB) */}
+                {["xrp", "ton", "bnb"].includes(session.coinId.toLowerCase()) && (
+                  <div className="wm-field-group">
+                    <label htmlFor="memoTagInput" className="wm-label">
+                      Memo / Tag <span style={{ color: "#64748b", fontWeight: 500 }}>(Optional)</span>
                     </label>
                     <input
+                      id="memoTagInput"
                       type="text"
-                      className="wallet-input memo-input"
-                      id="memoInput"
-                      placeholder="Memo tag for transfer (if required by your wallet)"
-                      autoComplete="off"
-                      spellCheck="false"
-                      value={memoInput}
-                      onChange={(e) => setMemoInput(e.target.value)}
+                      value={memoTag}
+                      onChange={(e) => setMemoTag(e.target.value)}
+                      placeholder="Enter Memo or Tag if required by your exchange"
+                      className="wm-input"
                     />
                   </div>
+                )}
 
-                  <div className="fee-breakdown">
-                    <div className="fee-row">
-                      <span>You Receive</span>
-                      <span id="feeReceiveAmt" style={{ color: 'var(--green)' }}>
-                        {session.minedAmount.toFixed(8)} {session.coinTicker}
-                      </span>
-                    </div>
-                    <div className="fee-row">
-                      <span>Service Fee</span>
-                      <span id="feeFeeAmt">
-                        ${(() => {
-                          const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
-                          return MINING_MODES[modeKey].fixedFeeUsd.toFixed(2);
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-                  <button
-                    className="btn"
-                    style={{
-                      width: '100%',
-                      marginTop: '12px',
-                      background: '#f97316',
-                      color: '#fff',
-                      border: 'none',
-                      fontWeight: '700',
-                      fontSize: '1rem',
-                      padding: '14px 0',
-                      borderRadius: '10px',
-                      cursor: 'pointer',
-                      display: 'block',
-                      letterSpacing: '0.02em',
-                      boxShadow: '0 4px 16px rgba(249,115,22,0.35)'
-                    }}
-                    id="confirmWalletBtn"
-                    onClick={confirmWallet}
-                  >
-                    Continue to Payment →
-                  </button>
-                </div>
-              )}
-
-              {/* STEP 2: Fee Payment Workflow */}
-              {modalStep === 2 && (
-                <div className="modal-step" id="modalStep2" style={{ display: 'block' }}>
-                  <h3 className="modal-step-title">
-                    <span className="step-badge">2</span> Pay Infrastructure Fee
-                  </h3>
-
-                  <div className="confirmed-wallet">
-                    <span className="cw-label">Withdrawal address:</span>
-                    <span className="cw-address" id="confirmedWalletAddr">
-                      {confirmedAddress}
+                {/* Submit Action Button */}
+                <button type="submit" className="wm-submit-btn" disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <span className="wm-btn-loading">
+                      <span className="wm-spinner" />
+                      <span>Initiating Blockchain Payout...</span>
                     </span>
-                    <button className="cw-edit" onClick={editWallet}>
-                      Edit
-                    </button>
-                  </div>
-
-                  <div className="fee-breakdown" style={{ marginBottom: '16px' }}>
-                    <div className="fee-row total">
-                      <span>Fee to Pay</span>
-                      <span id="feeTotalAmt">
-                        ${(() => {
-                          const modeKey = ['standard', 'boosted', 'turbo', 'max'][session.speedTier] || 'standard';
-                          return MINING_MODES[modeKey].fixedFeeUsd.toFixed(2);
-                        })()}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Payment Method Tabs */}
-                  <div className="pay-tabs">
-                    <button
-                      className={`pay-tab ${payTab === 'deposit' ? 'active' : ''}`}
-                      onClick={() => setPayTab('deposit')}
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 12V7H5a2 2 0 010-4h14v4"></path>
-                        <path d="M3 5v14a2 2 0 002 2h16v-5"></path>
-                        <path d="M18 12a2 2 0 100 4 2 2 0 000-4z"></path>
-                      </svg>
-                      Deposit
-                    </button>
-                    <button
-                      className={`pay-tab ${payTab === 'walletconnect' ? 'active' : ''}`}
-                      onClick={() => setPayTab('walletconnect')}
-                    >
-                      <svg width="16" height="11" viewBox="0 0 300 185" fill="none">
-                        <path d="M61.4 36.3c49-48 128.5-48 177.5 0l5.9 5.8a6 6 0 010 8.7l-20.2 19.8a3.1 3.1 0 01-4.4 0l-8.1-8c-34.2-33.5-89.6-33.5-123.8 0l-8.7 8.5a3.1 3.1 0 01-4.4 0L55 51.3a6 6 0 010-8.7l6.5-6.3zm219.3 40.8l18 17.6a6 6 0 010 8.7l-81 79.5a6.3 6.3 0 01-8.9 0l-57.5-56.4a1.6 1.6 0 00-2.2 0l-57.5 56.4a6.3 6.3 0 01-8.9 0l-81-79.5a6 6 0 010-8.7l18-17.6a6.3 6.3 0 018.9 0l57.5 56.4a1.6 1.6 0 002.2 0l57.5-56.4a6.3 6.3 0 018.9 0l57.5 56.4a1.6 1.6 0 002.2 0l57.5-56.4a6.3 6.3 0 018.9 0z" fill="#3B99FC"></path>
-                      </svg>
-                      WalletConnect
-                    </button>
-                  </div>
-
-                  {/* TAB: Deposit */}
-                  {payTab === 'deposit' && (
-                    <div className="pay-tab-content" id="tabDeposit" style={{ display: 'block' }}>
-                      <h3 className="modal-step-subtitle">PAY WITH</h3>
-                      <div className="pay-crypto-select" id="payCryptoSelect">
-                        {COINS.filter(c => ["btc", "eth", "bnb", "sol", "ton", "trx", "xmr", "ltc", "xrp", "usdt", "usdc"].includes(c.id)).map((coin) => (
-                          <div
-                            key={coin.id}
-                            className={`pay-option ${selectedPayCoin === coin.id ? 'active' : ''}`}
-                            onClick={() => setSelectedPayCoin(coin.id)}
-                          >
-                            <img
-                              src={coin.icon || `/assets/icons/${coin.id}.svg`}
-                              alt={coin.ticker}
-                              className="pay-coin-icon"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                            {coin.ticker}
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Dynamic Deposit Network Selection */}
-                      {COIN_NETWORKS[selectedPayCoin] && (
-                        <div className="network-select-wrap" id="networkSelectWrap" style={{ display: 'block' }}>
-                          <h3 className="modal-step-subtitle" style={{ marginTop: '4px' }}>SELECT NETWORK</h3>
-                          <div className="network-select" id="networkSelect">
-                            {COIN_NETWORKS[selectedPayCoin].map((net) => (
-                              <button
-                                key={net}
-                                type="button"
-                                className={`net-select-btn ${selectedNetwork === net ? 'active' : ''}`}
-                                onClick={() => setSelectedNetwork(net)}
-                              >
-                                {net}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="deposit-box" id="depositBox">
-                        <div className="network" id="depositNetwork">
-                          {selectedPayCoin.toUpperCase()} Network {selectedNetwork ? `(${selectedNetwork})` : ''}
-                        </div>
-                        {/* Interactive QR code container */}
-                        <div className="qr-canvas" id="qrCanvas" title={DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc}>
-                          <img src="/assets/qrcode.jpeg" style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} alt="Deposit QR Code" />
-                        </div>
-
-                        <div className="deposit-amount" id="depositAmount">
-                          <span className="da-label">
-                            Amount to send <span className="da-info-icon">?</span>
-                            <span className="da-tooltip">Send the precise amount shown. Incorrect amounts cannot be matched to your session automatically.</span>
-                          </span>
-                          <div className="da-value-wrap" onClick={(e) => copyAmount(getPayAmount(), e.currentTarget)}>
-                            <span className="da-value">{getPayAmount()}</span>
-                            <span className="da-ticker">{selectedPayCoin.toUpperCase()}</span>
-                            <svg className="da-copy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                              <rect x="9" y="9" width="13" height="13" rx="2"></rect>
-                              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"></path>
-                            </svg>
-                          </div>
-                        </div>
-
-                        <div className="addr-wrap" id="addrWrap" onClick={copyAddress}>
-                          <span className="addr-text" id="depositAddress">
-                            {DEPOSIT_ADDRESSES[selectedPayCoin] || DEPOSIT_ADDRESSES.btc}
-                          </span>
-                          <span className="addr-copy-btn" id="copyBtn">
-                            Copy Address
-                          </span>
-                        </div>
-                      </div>
-
-                      {paymentStatus === "searching" ? (
-                        <div className="tx-search" id="txSearch" style={{ display: 'block' }}>
-                          <div className="tx-spinner"></div>
-                          <div className="tx-search-text">Searching for transaction<span>{txDots}</span></div>
-                          <div className="tx-search-sub">This may take a few minutes depending on network confirmation speed</div>
-                        </div>
-                      ) : (
-                        <button className="btn-i-paid" id="btnIPaid" onClick={iPaid}>
-                          I've sent the payment
-                        </button>
-                      )}
-
-                      <div className="modal-note">
-                        <strong>Note:</strong> After sending the exact fee amount to the deposit address, your mined earnings will be sent to your wallet within 2 network confirmations.
-                      </div>
-                    </div>
+                  ) : (
+                    <span>CONFIRM & WITHDRAW ({withdrawAmount || "0"} {session.coinTicker}) →</span>
                   )}
+                </button>
+              </form>
 
-                  {/* TAB: WalletConnect */}
-                  {payTab === 'walletconnect' && (
-                    <div className="pay-tab-content" id="tabWalletConnect" style={{ display: 'block' }}>
-                      <div className="wc-container">
-                        <div className="wc-icon">
-                          <svg width="40" height="40" viewBox="0 0 480 480" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <rect width="480" height="480" rx="80" fill="#3B99FC"></rect>
-                            <path d="M141.4 189.3c54.4-53.3 142.7-53.3 197.1 0l6.5 6.4a6.7 6.7 0 010 9.7l-22.4 21.9a3.5 3.5 0 01-4.9 0l-9-8.8c-38-37.2-99.6-37.2-137.5 0l-9.6 9.4a3.5 3.5 0 01-4.9 0l-22.4-21.9a6.7 6.7 0 010-9.7l7.1-7zm243.5 45.4l19.9 19.5a6.7 6.7 0 010 9.7L314.5 353a7 7 0 01-9.9 0l-64.3-63a1.7 1.7 0 00-2.5 0l-64.3 63a7 7 0 01-9.8 0L73.3 263.9a6.7 6.7 0 010-9.7l19.9-19.5a7 7 0 019.9 0l64.3 63a1.7 1.7 0 002.5 0l64.3-63a7 7 0 019.8 0l64.3 63a1.7 1.7 0 002.5 0l64.3-63a7 7 0 019.8 0z" fill="#fff"></path>
-                          </svg>
-                        </div>
-                        <h3 className="wc-title">Connect Wallet</h3>
-                        <p className="wc-desc">
-                          Connect your wallet to pay the infrastructure fee directly. Supports 300+ wallets including MetaMask, Trust Wallet, Phantom, and more.
-                        </p>
-                        <button className="wc-connect-btn" onClick={iPaid}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M13 12H3"></path>
-                          </svg>
-                          Connect Wallet
-                        </button>
-                        <div className="wc-wallets">
-                          <span className="wc-wallet-tag">MetaMask</span>
-                          <span className="wc-wallet-tag">Trust Wallet</span>
-                          <span className="wc-wallet-tag">Phantom</span>
-                          <span className="wc-wallet-tag">Coinbase</span>
-                          <span className="wc-wallet-tag">Rainbow</span>
-                          <span className="wc-wallet-tag">+300 more</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+              <div className="wm-footer-guarantee">
+                <span className="wfg-dot" />
+                <span>Zero withdrawal fees · Processed via automated node batching</span>
+              </div>
+            </div>
+          ) : (
+            /* ─── SUCCESS CONFIRMATION SCREEN ─── */
+            <div className="wm-success-view">
+              <div className="wms-icon-wrap">
+                <span className="wms-check">✓</span>
+              </div>
+
+              <h3 className="wms-title">Withdrawal Initiated!</h3>
+              <p className="wms-desc">
+                Your withdrawal request of{" "}
+                <strong style={{ color: "#ffae19" }}>
+                  {submittedData?.amount} {submittedData?.coinTicker}
+                </strong>{" "}
+                (≈ ${submittedData?.usdValue} USD) has been broadcasted to the mining network pool.
+              </p>
+
+              <div className="wms-details-box">
+                <div className="wmsd-row">
+                  <span className="wmsd-label">Destination Address:</span>
+                  <code className="wmsd-val address-mono">{submittedData?.address}</code>
                 </div>
-              )}
-            </>
+                <div className="wmsd-row">
+                  <span className="wmsd-label">Payout Status:</span>
+                  <span className="wmsd-val green-text">Processing (2 confirmations)</span>
+                </div>
+                <div className="wmsd-row">
+                  <span className="wmsd-label">Estimated Arrival:</span>
+                  <span className="wmsd-val">5–15 minutes</span>
+                </div>
+                <div className="wmsd-row">
+                  <span className="wmsd-label">Transaction ID:</span>
+                  <code className="wmsd-val mono-dim">{submittedData?.txId}</code>
+                </div>
+              </div>
+
+              <button className="wm-submit-btn" onClick={handleModalClose}>
+                DONE · RETURN TO DASHBOARD
+              </button>
+            </div>
           )}
         </div>
       </div>

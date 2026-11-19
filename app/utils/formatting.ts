@@ -13,15 +13,19 @@ export function formatUsd(amount: number): string {
 
 export function formatTime(elapsedMs: number): string {
   const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
-  const hours = Math.floor(totalSeconds / 3600);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
 
   const pad = (num: number) => String(num).padStart(2, "0");
+  if (days > 0) {
+    return `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  }
   return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
 export function formatPercentage(progress: number): string {
-  const clamped = Math.min(Math.max(progress, 0), 1);
-  return `${Math.floor(clamped * 100)}%`;
+  const clamped = Math.min(Math.max(progress, 0), 100);
+  return `${Math.floor(clamped)}%`;
 }

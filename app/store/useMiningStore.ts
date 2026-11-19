@@ -40,7 +40,12 @@ interface MiningStore {
     speedTier: number;
   } | null;
 
+  userEmail: string | null;
+  isPlanPaid: boolean;
+
   // Actions
+  setUserEmail: (email: string) => void;
+  setPlanPaid: (isPaid: boolean, tier?: number) => void;
   setSelectedCoin: (coin: string) => void;
   setSpeedTier: (tier: number) => void;
   startMining: (coinPrice: number) => void;
@@ -83,15 +88,127 @@ const getModeKeyByTier = (tier: number): string => {
   }
 };
 
+export const DEFAULT_BTC_SETTLEMENTS: PastSession[] = [
+  {
+    sessionId: "NX-7F9B-2041",
+    coin: "BTC",
+    amount: 0.84192045,
+    date: "19/11/2026",
+    speedTier: 2,
+    completedUsd: 65634.43,
+    startedAt: Date.now() - 86400000 * 1,
+    completedAt: Date.now() - 3600000 * 2,
+    status: "completed",
+  },
+  {
+    sessionId: "NX-3E18-99D2",
+    coin: "BTC",
+    amount: 0.24581043,
+    date: "17/11/2026",
+    speedTier: 1,
+    completedUsd: 19162.99,
+    startedAt: Date.now() - 86400000 * 3,
+    completedAt: Date.now() - 86400000 * 2,
+    status: "completed",
+  },
+  {
+    sessionId: "NX-8A4C-110F",
+    coin: "BTC",
+    amount: 0.69241018,
+    date: "14/11/2026",
+    speedTier: 2,
+    completedUsd: 53979.71,
+    startedAt: Date.now() - 86400000 * 6,
+    completedAt: Date.now() - 86400000 * 5,
+    status: "completed",
+  },
+  {
+    sessionId: "NX-1D90-67BE",
+    coin: "BTC",
+    amount: 0.05839211,
+    date: "10/11/2026",
+    speedTier: 0,
+    completedUsd: 4552.17,
+    startedAt: Date.now() - 86400000 * 10,
+    completedAt: Date.now() - 86400000 * 9,
+    status: "completed",
+  },
+  {
+    sessionId: "NX-5E77-90AA",
+    coin: "BTC",
+    amount: 0.41902847,
+    date: "05/11/2026",
+    speedTier: 1,
+    completedUsd: 32666.62,
+    startedAt: Date.now() - 86400000 * 15,
+    completedAt: Date.now() - 86400000 * 14,
+    status: "completed",
+  },
+  {
+    sessionId: "NX-8A19-33DF",
+    coin: "BTC",
+    amount: 0.11470592,
+    date: "01/11/2026",
+    speedTier: 0,
+    completedUsd: 8942.24,
+    startedAt: Date.now() - 86400000 * 19,
+    completedAt: Date.now() - 86400000 * 18,
+    status: "completed",
+  },
+  {
+    sessionId: "NX-2B66-784C",
+    coin: "BTC",
+    amount: 0.94723015,
+    date: "28/10/2026",
+    speedTier: 2,
+    completedUsd: 73844.27,
+    startedAt: Date.now() - 86400000 * 23,
+    completedAt: Date.now() - 86400000 * 22,
+    status: "completed",
+  },
+];
+
 export const useMiningStore = create<MiningStore>((set, get) => ({
   isMining: false,
   selectedCoin: "btc",
   speedTier: 1, // default Boosted
   currentSession: null,
-  history: [],
+  history: DEFAULT_BTC_SETTLEMENTS,
   unpaidSessions: [],
   isWithdrawalModalOpen: false,
   withdrawalSession: null,
+
+  userEmail: null,
+  isPlanPaid: false,
+
+  setUserEmail: (email: string) => {
+    const { selectedCoin, speedTier, isPlanPaid } = get();
+    set({ userEmail: email });
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("chukohash_user_email", email);
+        savePreferences({ selectedCoin, speedTier, userEmail: email, isPlanPaid });
+      } catch {}
+    }
+  },
+
+  setPlanPaid: (isPaid: boolean, tier?: number) => {
+    const { selectedCoin, speedTier, userEmail } = get();
+    const effectiveTier = tier !== undefined ? tier : speedTier;
+    set({ isPlanPaid: isPaid, speedTier: effectiveTier });
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("chukohash_plan_paid", isPaid ? "true" : "false");
+        savePreferences({
+          selectedCoin,
+          speedTier: effectiveTier,
+          userEmail: userEmail || undefined,
+          isPlanPaid: isPaid,
+          paidTier: effectiveTier,
+        });
+      } catch {}
+    }
+  },
 
   openWithdrawalModal: (session) => {
     set({
@@ -128,18 +245,18 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
   },
 
   setSelectedCoin: (coin) => {
-    const { speedTier } = get();
+    const { speedTier, userEmail } = get();
     set({ selectedCoin: coin });
     if (typeof window !== "undefined") {
-      savePreferences({ selectedCoin: coin, speedTier });
+      savePreferences({ selectedCoin: coin, speedTier, userEmail: userEmail || undefined });
     }
   },
 
   setSpeedTier: (tier) => {
-    const { selectedCoin } = get();
+    const { selectedCoin, userEmail } = get();
     set({ speedTier: tier });
     if (typeof window !== "undefined") {
-      savePreferences({ selectedCoin, speedTier: tier });
+      savePreferences({ selectedCoin, speedTier: tier, userEmail: userEmail || undefined });
     }
   },
 
@@ -225,13 +342,47 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     migrateLegacyStorage();
 
     const prefs = loadPreferences();
+    let email = prefs?.userEmail || null;
+    if (!email) {
+      try {
+        email = localStorage.getItem("chukohash_user_email");
+      } catch {}
+    }
+    let isPaid = false;
+    try {
+      const paidStr = localStorage.getItem("chukohash_plan_paid");
+      isPaid = paidStr === "true" || (prefs?.isPlanPaid === true);
+    } catch {}
+
     if (prefs) {
-      set({ selectedCoin: prefs.selectedCoin, speedTier: prefs.speedTier });
+      set({
+        selectedCoin: prefs.selectedCoin,
+        speedTier: prefs.paidTier !== undefined ? prefs.paidTier : prefs.speedTier,
+        userEmail: email,
+        isPlanPaid: isPaid,
+      });
+    } else if (email) {
+      set({ userEmail: email, isPlanPaid: isPaid });
+    } else {
+      set({ isPlanPaid: isPaid });
     }
 
     const savedHistory = loadHistory();
-    if (savedHistory.length > 0) {
-      set({ history: savedHistory });
+    if (savedHistory && savedHistory.length > 0) {
+      // Check if default settlements are already present
+      const hasDefaults = savedHistory.some((h) =>
+        DEFAULT_BTC_SETTLEMENTS.some((d) => d.sessionId === h.sessionId)
+      );
+      if (!hasDefaults) {
+        const merged = [...savedHistory, ...DEFAULT_BTC_SETTLEMENTS];
+        set({ history: merged });
+        persistHistory(merged);
+      } else {
+        set({ history: savedHistory });
+      }
+    } else {
+      set({ history: DEFAULT_BTC_SETTLEMENTS });
+      persistHistory(DEFAULT_BTC_SETTLEMENTS);
     }
 
     // Restore persistent unpaid sessions if available

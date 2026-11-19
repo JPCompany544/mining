@@ -1,41 +1,104 @@
 export interface MiningMode {
   id: string;
+  tierIndex: number;
   name: string;
-  durationMs: number;
-  targetUsd: number;
+  badge?: string;
+  priceUsd: number;
   fixedFeeUsd: number;
+  targetUsd: number;
+  dailyUsd: number;
+  durationDays: number;
+  durationMs: number;
+  rigHardware: string;
+  hashrateDisplay: string;
+  hashrateNumeric: number;
+  hashrateUnit: string;
+  allowedCoins: string[];
 }
 
 export const MINING_MODES: Record<string, MiningMode> = {
   standard: {
     id: "standard",
-    name: "Standard",
-    durationMs: 60 * 60 * 1000, // 60 minutes
-    targetUsd: 2100,
-    fixedFeeUsd: 70,
+    tierIndex: 0,
+    name: "Node Starter",
+    badge: "STARTER RIG",
+    priceUsd: 150,
+    fixedFeeUsd: 150,
+    targetUsd: 1500,
+    dailyUsd: 214.28,
+    durationDays: 7,
+    durationMs: 7 * 24 * 60 * 60 * 1000, // 7 days (604,800,000 ms)
+    rigHardware: "4× NVIDIA RTX 4090 Cloud Nodes",
+    hashrateDisplay: "180 TH/s",
+    hashrateNumeric: 180,
+    hashrateUnit: "TH/s",
+    allowedCoins: ["btc", "ltc", "doge"],
   },
   boosted: {
     id: "boosted",
-    name: "Boosted",
-    durationMs: 45 * 60 * 1000, // 45 minutes
-    targetUsd: 5500,
-    fixedFeeUsd: 100,
+    tierIndex: 1,
+    name: "Cluster Rig",
+    badge: "MOST POPULAR",
+    priceUsd: 300,
+    fixedFeeUsd: 300,
+    targetUsd: 3000,
+    dailyUsd: 428.57,
+    durationDays: 7,
+    durationMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+    rigHardware: "8× Bitmain Antminer S21 Hydro",
+    hashrateDisplay: "450 TH/s",
+    hashrateNumeric: 450,
+    hashrateUnit: "TH/s",
+    allowedCoins: ["btc", "ltc", "doge", "eth", "sol", "ton", "trx", "bnb"],
   },
   turbo: {
     id: "turbo",
-    name: "Turbo",
-    durationMs: 30 * 60 * 1000, // 30 minutes
-    targetUsd: 12800,
-    fixedFeeUsd: 150,
+    tierIndex: 2,
+    name: "Quantum Titan",
+    badge: "MAX PROFIT",
+    priceUsd: 500,
+    fixedFeeUsd: 500,
+    targetUsd: 5000,
+    dailyUsd: 714.28,
+    durationDays: 7,
+    durationMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+    rigHardware: "16× NVIDIA H100 AI/GPU Cluster",
+    hashrateDisplay: "1.2 PH/s",
+    hashrateNumeric: 1.2,
+    hashrateUnit: "PH/s",
+    allowedCoins: [
+      "btc", "eth", "bnb", "sol", "ton", "xmr", "doge",
+      "trx", "ada", "dot", "usdt", "usdc", "ltc", "xrp"
+    ],
   },
+  // Backwards compatibility alias
   max: {
     id: "max",
-    name: "Max Power",
-    durationMs: 10 * 60 * 1000, // 10 minutes
-    targetUsd: 35000,
-    fixedFeeUsd: 200,
+    tierIndex: 2,
+    name: "Quantum Titan",
+    badge: "MAX PROFIT",
+    priceUsd: 500,
+    fixedFeeUsd: 500,
+    targetUsd: 5000,
+    dailyUsd: 714.28,
+    durationDays: 7,
+    durationMs: 7 * 24 * 60 * 60 * 1000,
+    rigHardware: "16× NVIDIA H100 AI/GPU Cluster",
+    hashrateDisplay: "1.2 PH/s",
+    hashrateNumeric: 1.2,
+    hashrateUnit: "PH/s",
+    allowedCoins: [
+      "btc", "eth", "bnb", "sol", "ton", "xmr", "doge",
+      "trx", "ada", "dot", "usdt", "usdc", "ltc", "xrp"
+    ],
   },
 };
+
+export const MINING_PLANS: MiningMode[] = [
+  MINING_MODES.standard,
+  MINING_MODES.boosted,
+  MINING_MODES.turbo,
+];
 
 export interface MiningSession {
   sessionId: string;

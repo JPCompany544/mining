@@ -4,6 +4,9 @@ import type { LogEntry } from "../config/logTemplates";
 export interface UserPreferences {
   selectedCoin: string;
   speedTier: number;
+  userEmail?: string;
+  isPlanPaid?: boolean;
+  paidTier?: number;
 }
 
 export interface VisualPersistedState {
