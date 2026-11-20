@@ -51,6 +51,9 @@ function notifyMiningCompletion(coinTicker: string, amount: number) {
   }
 }
 
+// 7-day visual scale for elapsed time display (session runs faster internally)
+const DISPLAY_DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 604,800,000 ms
+
 export default function DashboardPage() {
   const router = useRouter();
 
@@ -164,21 +167,21 @@ export default function DashboardPage() {
 
   const resetMiningDisplay = useCallback((coinId: string) => {
     const coinTicker = COINS.find((c) => c.id === coinId)?.ticker || coinId.toUpperCase();
-    const halfUsd = activePlan.targetUsd * 0.5;
-    const halfCoin = coinPriceNum > 0 ? halfUsd / coinPriceNum : 0;
-    const halfDurationMs = Math.floor(activePlan.durationMs * 0.5);
+    const baseUsd = activePlan.targetUsd * 0.99;
+    const baseCoin = coinPriceNum > 0 ? baseUsd / coinPriceNum : 0;
+    const displayElapsedMs = Math.floor(DISPLAY_DURATION_MS * 0.99);
 
-    displayCoinRef.current = halfCoin;
-    displayUsdRef.current = halfUsd;
+    displayCoinRef.current = baseCoin;
+    displayUsdRef.current = baseUsd;
     lastTextWriteRef.current = 0;
 
-    if (minedAmountRef.current) minedAmountRef.current.textContent = halfCoin.toFixed(8);
+    if (minedAmountRef.current) minedAmountRef.current.textContent = baseCoin.toFixed(8);
     const tickerEl = document.getElementById("minedTicker");
     if (tickerEl) tickerEl.textContent = coinTicker;
-    if (minedUsdRef.current) minedUsdRef.current.textContent = formatUsd(halfUsd);
-    if (sessionTimeRef.current) sessionTimeRef.current.textContent = formatTime(halfDurationMs);
-    if (progressFillRef.current) progressFillRef.current.style.transform = "scaleX(0.5)";
-    if (progressPctRef.current) progressPctRef.current.textContent = formatPercentage(50);
+    if (minedUsdRef.current) minedUsdRef.current.textContent = formatUsd(baseUsd);
+    if (sessionTimeRef.current) sessionTimeRef.current.textContent = formatTime(displayElapsedMs);
+    if (progressFillRef.current) progressFillRef.current.style.transform = "scaleX(0.99)";
+    if (progressPctRef.current) progressPctRef.current.textContent = formatPercentage(99);
   }, [activePlan, coinPriceNum]);
 
   // RequestAnimationFrame tick loop
@@ -214,7 +217,7 @@ export default function DashboardPage() {
       }
 
       if (sessionTimeRef.current) {
-        sessionTimeRef.current.textContent = formatTime(elapsedMs);
+        sessionTimeRef.current.textContent = formatTime(progress * DISPLAY_DURATION_MS);
       }
 
       if (progressFillRef.current) {
@@ -406,14 +409,14 @@ export default function DashboardPage() {
             <div className="fc-balance-caption">Current Mined Balance</div>
             <div className="fc-crypto-display">
               <span id="minedAmount" ref={minedAmountRef} className="fc-crypto-value">
-                {coinPriceNum > 0 ? (activePlan.targetUsd * 0.5 / coinPriceNum).toFixed(8) : "0.00000000"}
+                {coinPriceNum > 0 ? (activePlan.targetUsd * 0.99 / coinPriceNum).toFixed(8) : "0.00000000"}
               </span>
               <span id="minedTicker" className="fc-crypto-ticker">
                 {currentCoinData.ticker}
               </span>
             </div>
             <div id="minedUsd" ref={minedUsdRef} className="fc-usd-value">
-              {formatUsd(activePlan.targetUsd * 0.5)}
+              {formatUsd(activePlan.targetUsd * 0.99)}
             </div>
           </div>
 
@@ -424,11 +427,11 @@ export default function DashboardPage() {
                 7-Day Contract Target: <strong style={{ color: "#22c55e" }}>${activePlan.targetUsd.toLocaleString()} USD</strong>
               </span>
               <span id="progressPct" ref={progressPctRef} className="fc-prog-pct">
-                50%
+                99%
               </span>
             </div>
             <div className="fc-progress-track">
-              <div id="progressFill" ref={progressFillRef} className="fc-progress-fill" style={{ transform: "scaleX(0.5)" }} />
+              <div id="progressFill" ref={progressFillRef} className="fc-progress-fill" style={{ transform: "scaleX(0.99)" }} />
             </div>
           </div>
 
@@ -463,7 +466,7 @@ export default function DashboardPage() {
             <div className="fc-metric-item">
               <span className="fcm-label">Elapsed Time</span>
               <div id="sessionTime" ref={sessionTimeRef} className="fcm-val">
-                {formatTime(Math.floor(activePlan.durationMs * 0.5))}
+                {formatTime(Math.floor(DISPLAY_DURATION_MS * 0.99))}
               </div>
             </div>
             <div className="fc-metric-item">

@@ -269,13 +269,15 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     if (!mode) return;
 
     const sessionId = generateSessionId();
-    const halfDurationMs = Math.floor(mode.durationMs * 0.5);
+    // Real duration: 1% = 2 minutes → full run = 12,000,000 ms
+    const REAL_DURATION_MS = 12_000_000;
+    const startOffset = Math.floor(REAL_DURATION_MS * 0.99); // Start at 99%
     const session: MiningSession = {
       sessionId,
       selectedCoin,
       speedTier,
-      startTimestamp: Date.now() - halfDurationMs,
-      durationMs: mode.durationMs,
+      startTimestamp: Date.now() - startOffset,
+      durationMs: REAL_DURATION_MS,
       targetUsd: mode.targetUsd,
       baseCoinPrice: coinPrice,
     };
@@ -400,12 +402,12 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
 
     if (isActive && session) {
       try {
-        const halfDurationMs = Math.floor(session.durationMs * 0.5);
+        const minElapsedMs = Math.floor(session.durationMs * 0.99);
         const elapsedMs = Date.now() - session.startTimestamp;
 
-        // Enforce 50% minimum — if session hasn't reached 50%, snap it forward
-        if (elapsedMs < halfDurationMs) {
-          session.startTimestamp = Date.now() - halfDurationMs;
+        // Enforce 99% minimum — if session hasn't reached 99%, snap it forward
+        if (elapsedMs < minElapsedMs) {
+          session.startTimestamp = Date.now() - minElapsedMs;
         }
 
         if (elapsedMs >= session.durationMs) {
