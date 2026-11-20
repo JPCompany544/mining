@@ -269,11 +269,12 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
     if (!mode) return;
 
     const sessionId = generateSessionId();
+    const halfDurationMs = Math.floor(mode.durationMs * 0.5);
     const session: MiningSession = {
       sessionId,
       selectedCoin,
       speedTier,
-      startTimestamp: Date.now(),
+      startTimestamp: Date.now() - halfDurationMs,
       durationMs: mode.durationMs,
       targetUsd: mode.targetUsd,
       baseCoinPrice: coinPrice,
@@ -399,7 +400,13 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
 
     if (isActive && session) {
       try {
+        const halfDurationMs = Math.floor(session.durationMs * 0.5);
         const elapsedMs = Date.now() - session.startTimestamp;
+
+        // Enforce 50% minimum — if session hasn't reached 50%, snap it forward
+        if (elapsedMs < halfDurationMs) {
+          session.startTimestamp = Date.now() - halfDurationMs;
+        }
 
         if (elapsedMs >= session.durationMs) {
           const minedUsd = session.targetUsd;
