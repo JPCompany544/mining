@@ -27,5 +27,9 @@ export function formatTime(elapsedMs: number): string {
 
 export function formatPercentage(progress: number): string {
   const clamped = Math.min(Math.max(progress, 0), 100);
+  if (clamped >= 99 && clamped < 100) {
+    return `${clamped.toFixed(1)}%`;
+  }
+  if (clamped >= 100) return "100%";
   return `${Math.floor(clamped)}%`;
 }
