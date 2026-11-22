@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { MiningMode } from "../config/mining";
 import { useMiningStore } from "../store/useMiningStore";
-import { COINS } from "../config/coins";
 import { createClient } from "@/lib/supabase/client";
 import { getSupabaseEnv } from "@/lib/supabase/config";
 import { ensureMinerProfile } from "@/lib/supabase/minerProfile";
+import Portal from "./Portal";
 
 interface PlanEmailModalProps {
   plan: MiningMode | null;
@@ -30,26 +30,26 @@ const PAYMENT_OPTIONS: Record<
   }
 > = {
   usdt: {
-    name: "Tether (TRC-20)",
+    name: "Tether",
     symbol: "USDT",
     network: "Tron (TRC-20)",
     address: "TNaZbM2KpomzDT9PRufvyRcFH1EBtTmgCo",
     price: 1.0,
-    badge: "Recommended · 0% Gas",
+    badge: "Recommended · Lowest Fees",
     icon: "https://cdn.brandfetch.io/idpu_p285y/theme/light/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
   },
   btc: {
     name: "Bitcoin",
     symbol: "BTC",
-    network: "Bitcoin Native SegWit",
+    network: "Bitcoin Network",
     address: "bc1qagvkz7ad8uqp62hwd5pztgxv82zan3wcjr2ft4",
     price: 77958,
     icon: "https://cdn.brandfetch.io/idkbqeYUg6/theme/dark/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
   },
   eth: {
-    name: "Ethereum (ERC-20)",
+    name: "Ethereum",
     symbol: "ETH",
-    network: "Ethereum Mainnet",
+    network: "Ethereum (ERC-20)",
     address: "0x169C339370E67C03e84787d8eC402dd89d94b51D",
     price: 2143,
     icon: "https://cdn.brandfetch.io/idhZINDHvW/theme/dark/logo.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
@@ -60,7 +60,7 @@ const PAYMENT_OPTIONS: Record<
     network: "Solana Network",
     address: "3vwAi8FEGcerD4yfQHBFFKx4FvRzPDNMGeVRZe3qoEzj",
     price: 86.96,
-    badge: "Fastest (~3s)",
+    badge: "Fastest (~3 sec)",
     icon: "https://cdn.brandfetch.io/ide0NUuTHO/theme/light/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
   },
   usdc: {
@@ -98,11 +98,12 @@ function playSoundChime() {
 
 export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModalProps) {
   const router = useRouter();
+  const cardRef = useRef<HTMLDivElement>(null);
 
-  // Multi-step: 1 = Auth / Signup, 2 = Payment Sheet, 3 = Verification / Provisioning
+  // Multi-step: 1 = Sign Up / Sign In, 2 = Deposit Payment, 3 = Confirmation
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
-  // Auth form state
+  // Auth states
   const [authMode, setAuthMode] = useState<"register" | "login">("register");
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
   const [email, setEmail] = useState("");
@@ -116,9 +117,9 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
   // Payment states
   const [selectedCoin, setSelectedCoin] = useState<PaymentCoin>("usdt");
   const [copiedType, setCopiedType] = useState<"address" | "amount" | null>(null);
-  const [timeLeft, setTimeLeft] = useState(900); // 15:00 minutes
+  const [showQr, setShowQr] = useState(false);
 
-  // Step 3 animation states
+  // Step 3 Confirmation state
   const [verificationStage, setVerificationStage] = useState(0);
 
   const setUserEmail = useMiningStore((s) => s.setUserEmail);
@@ -126,16 +127,38 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
   const existingEmail = useMiningStore((s) => s.userEmail);
   const { isConfigured, siteUrl } = getSupabaseEnv();
 
-  // Reset state and check active auth session when modal opens
+  // Reset scroll to top when step changes
+  useEffect(() => {
+    if (cardRef.current) {
+      cardRef.current.scrollTop = 0;
+    }
+  }, [step]);
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
+
+  // Check auth and reset states when modal opens
   useEffect(() => {
     if (isOpen) {
       setStep(1);
       setError("");
       setCopiedType(null);
-      setTimeLeft(900);
+      setShowQr(false);
       setVerificationStage(0);
       setPassword("");
       setConfirmPassword("");
+
+      if (cardRef.current) {
+        cardRef.current.scrollTop = 0;
+      }
 
       if (isConfigured) {
         const supabase = createClient();
@@ -154,25 +177,9 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
     }
   }, [isOpen, existingEmail, isConfigured]);
 
-  // 15-minute countdown timer on Step 2
-  useEffect(() => {
-    if (step !== 2) return;
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [step]);
-
-  // Format timer MM:SS
-  const timerDisplay = useMemo(() => {
-    const mins = Math.floor(timeLeft / 60);
-    const secs = timeLeft % 60;
-    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  }, [timeLeft]);
-
   const activeOption = PAYMENT_OPTIONS[selectedCoin];
 
-  // Calculate exact crypto amount
+  // Calculate exact crypto payment amount
   const cryptoAmount = useMemo(() => {
     if (!plan) return "0";
     const amount = plan.priceUsd / activeOption.price;
@@ -186,11 +193,11 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(text);
       setCopiedType(type);
-      setTimeout(() => setCopiedType(null), 2000);
+      setTimeout(() => setCopiedType(null), 2200);
     }
   }, []);
 
-  // Handle Authenticated User Fast Proceed
+  // Handle Logged-In User Quick Proceed
   const handleProceedExisting = () => {
     if (currentUser?.email) {
       setUserEmail(currentUser.email);
@@ -198,7 +205,7 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
     setStep(2);
   };
 
-  // Step 1: Sign up or Log in -> Proceed to Step 2
+  // Step 1: Submit Account -> Proceed to Payment
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -210,7 +217,7 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
     }
 
     if (!password) {
-      setError("Please enter your account password.");
+      setError("Please enter your password.");
       return;
     }
 
@@ -220,12 +227,12 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
         return;
       }
       if (password !== confirmPassword) {
-        setError("Passwords do not match.");
+        setError("Passwords do not match. Please check again.");
         return;
       }
     }
 
-    // If Supabase is not configured, fallback gracefully to store
+    // Fallback if Supabase credentials are not yet configured
     if (!isConfigured) {
       setUserEmail(cleanEmail);
       setStep(2);
@@ -238,7 +245,6 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
       const supabase = createClient();
 
       if (authMode === "register") {
-        // Register new miner account
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: cleanEmail,
           password,
@@ -258,7 +264,7 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
             lower.includes("user already registered")
           ) {
             setError(
-              "An account with this email already exists. Click 'Sign In' above to continue."
+              "An account with this email already exists. Click 'Sign In' above to log in."
             );
           } else {
             setError(signUpError.message);
@@ -267,10 +273,10 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
           return;
         }
 
-        // Anti-enumeration duplicate check
+        // Check if email already existed (anti-enumeration)
         if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           setError(
-            "An account with this email is already registered. Click 'Sign In' above to continue."
+            "An account with this email already exists. Click 'Sign In' above to log in."
           );
           setAuthLoading(false);
           return;
@@ -281,14 +287,13 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
           setCurrentUser({ id: data.user.id, email: data.user.email });
         }
       } else {
-        // Sign in existing miner
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password,
         });
 
         if (signInError) {
-          setError("Invalid email address or password. Please try again.");
+          setError("Incorrect email or password. Please try again.");
           setAuthLoading(false);
           return;
         }
@@ -298,17 +303,17 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
         }
       }
 
-      // Successful auth -> advance to payment sheet!
+      // Success -> Advance to Step 2 Deposit Payment
       setUserEmail(cleanEmail);
       setAuthLoading(false);
       setStep(2);
     } catch (err: any) {
-      setError(err.message || "Authentication failed. Please try again.");
+      setError(err.message || "Something went wrong. Please try again.");
       setAuthLoading(false);
     }
   };
 
-  // Step 2 Submission: "I Have Sent Payment" -> Step 3 Verification
+  // Step 2: "I Have Paid" -> Step 3 Confirmation & Dashboard Redirect
   const handleConfirmPayment = () => {
     setStep(3);
     setVerificationStage(1);
@@ -334,418 +339,435 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
   if (!isOpen || !plan) return null;
 
   return (
-    <div className="plan-modal-overlay" onClick={step === 3 ? undefined : onClose}>
-      <div className="plan-modal-card checkout-card" onClick={(e) => e.stopPropagation()}>
-        {step !== 3 && (
-          <button className="plan-modal-close" onClick={onClose} aria-label="Close modal">
-            ✕
-          </button>
-        )}
+    <Portal>
+      <div className="plan-modal-overlay" onClick={step === 3 ? undefined : onClose}>
+        <div
+          ref={cardRef}
+          className="plan-modal-card checkout-card"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {step !== 3 && (
+            <button className="plan-modal-close" onClick={onClose} aria-label="Close modal">
+              ✕
+            </button>
+          )}
 
-        {/* ─── STEP 1: AUTHENTICATION / REGISTRATION ─── */}
-        {step === 1 && (
-          <div className="checkout-step-container">
-            <div className="plan-modal-header">
-              <span className="plan-badge-inline">{plan.badge || "CLOUD RIG"}</span>
-              <h3 className="plan-modal-title">
-                {currentUser ? "Allocate Mining Node" : "Miner Registration"}
-              </h3>
-              <p className="plan-modal-sub">
-                Deploying <strong style={{ color: "#ffae19" }}>{plan.name}</strong> (${plan.priceUsd} plan · mines{" "}
-                <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()}</strong> in 7 days).
-              </p>
-            </div>
-
-            {/* If user is already authenticated */}
-            {currentUser ? (
-              <div className="plan-modal-form">
-                <div className="modal-auth-logged-card">
-                  <div className="malc-top">
-                    <span className="malc-badge">
-                      <span className="malc-dot" />
-                      AUTHENTICATED OPERATOR
-                    </span>
-                    <button
-                      type="button"
-                      className="malc-switch-btn"
-                      onClick={() => {
-                        setCurrentUser(null);
-                        setPassword("");
-                        setConfirmPassword("");
-                      }}
-                    >
-                      Switch Account
-                    </button>
-                  </div>
-                  <div className="malc-email">{currentUser.email}</div>
-                </div>
-
-                <div className="plan-modal-specs">
-                  <div className="pms-row">
-                    <span>Cloud Rig Hardware:</span>
-                    <strong>{plan.rigHardware}</strong>
-                  </div>
-                  <div className="pms-row">
-                    <span>Hash Power Allocated:</span>
-                    <strong style={{ color: "#ffae19" }}>{plan.hashrateDisplay}</strong>
-                  </div>
-                  <div className="pms-row">
-                    <span>Guaranteed 7-Day Output:</span>
-                    <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} (10× Return)</strong>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="plan-modal-submit"
-                  onClick={handleProceedExisting}
-                >
-                  PROCEED TO PAYMENT (${plan.priceUsd}) →
-                </button>
+          {/* ─── STEP 1: CREATE ACCOUNT OR SIGN IN ─── */}
+          {step === 1 && (
+            <div className="checkout-step-container">
+              <div className="plan-modal-header">
+                <span className="plan-badge-inline">{plan.name}</span>
+                <h3 className="plan-modal-title">
+                  {currentUser ? "Confirm Your Plan" : "Create Your Account"}
+                </h3>
+                <p className="plan-modal-sub">
+                  Deposit <strong style={{ color: "#ffae19" }}>${plan.priceUsd}</strong> to start earning{" "}
+                  <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()}</strong> in 7 days.
+                </p>
               </div>
-            ) : (
-              /* If user needs to register or log in */
-              <div>
-                <div className="modal-auth-tabs">
-                  <button
-                    type="button"
-                    className={`modal-auth-tab ${authMode === "register" ? "active" : ""}`}
-                    onClick={() => {
-                      setAuthMode("register");
-                      setError("");
-                    }}
-                  >
-                    Create Account
-                  </button>
-                  <button
-                    type="button"
-                    className={`modal-auth-tab ${authMode === "login" ? "active" : ""}`}
-                    onClick={() => {
-                      setAuthMode("login");
-                      setError("");
-                    }}
-                  >
-                    Sign In
-                  </button>
-                </div>
 
-                {error && <div className="plan-input-error" style={{ marginBottom: "0.9rem" }}>{error}</div>}
-
-                <form onSubmit={handleAuthSubmit} className="plan-modal-form">
-                  <div className="plan-input-group">
-                    <label htmlFor="planUserEmail">Node Email Address</label>
-                    <div className="plan-email-input-wrap">
-                      <input
-                        id="planUserEmail"
-                        type="email"
-                        placeholder="miner@domain.com"
-                        value={email}
-                        onChange={(e) => {
-                          setEmail(e.target.value);
-                          if (error) setError("");
-                        }}
-                        autoFocus
-                        required
-                      />
-                    </div>
-                  </div>
-
-                  {authMode === "register" && (
-                    <div className="plan-input-group">
-                      <label htmlFor="planUsername">Call-Sign / Username (Optional)</label>
-                      <input
-                        id="planUsername"
-                        type="text"
-                        placeholder="e.g. ApexMiner-01"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                      />
-                    </div>
-                  )}
-
-                  <div className="plan-input-group">
-                    <label htmlFor="planPassword">Password</label>
-                    <div className="auth-input-wrap" style={{ position: "relative" }}>
-                      <input
-                        id="planPassword"
-                        type={showPassword ? "text" : "password"}
-                        placeholder={authMode === "register" ? "Min. 6 characters" : "Account password"}
-                        value={password}
-                        onChange={(e) => {
-                          setPassword(e.target.value);
-                          if (error) setError("");
-                        }}
-                        required
-                        minLength={6}
-                        style={{ width: "100%", paddingRight: "40px" }}
-                      />
+              {/* If user is already logged in */}
+              {currentUser ? (
+                <div className="plan-modal-form">
+                  <div className="modal-auth-logged-card">
+                    <div className="malc-top">
+                      <span className="malc-badge">
+                        <span className="malc-dot" />
+                        LOGGED IN ACCOUNT
+                      </span>
                       <button
                         type="button"
-                        className="auth-toggle-pwd"
-                        onClick={() => setShowPassword(!showPassword)}
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        style={{ position: "absolute", right: "12px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                        className="malc-switch-btn"
+                        onClick={() => {
+                          setCurrentUser(null);
+                          setPassword("");
+                          setConfirmPassword("");
+                        }}
                       >
-                        {showPassword ? (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"></path>
-                            <line x1="1" y1="1" x2="23" y2="23"></line>
-                          </svg>
-                        ) : (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                            <circle cx="12" cy="12" r="3"></circle>
-                          </svg>
-                        )}
+                        Use Different Account
                       </button>
                     </div>
+                    <div className="malc-email">{currentUser.email}</div>
                   </div>
-
-                  {authMode === "register" && (
-                    <div className="plan-input-group">
-                      <label htmlFor="planConfirmPassword">Confirm Password</label>
-                      <input
-                        id="planConfirmPassword"
-                        type={showPassword ? "text" : "password"}
-                        placeholder="Re-enter password"
-                        value={confirmPassword}
-                        onChange={(e) => {
-                          setConfirmPassword(e.target.value);
-                          if (error) setError("");
-                        }}
-                        required
-                      />
-                    </div>
-                  )}
 
                   <div className="plan-modal-specs">
                     <div className="pms-row">
-                      <span>Cloud Rig Hardware:</span>
-                      <strong>{plan.rigHardware}</strong>
+                      <span>Selected Plan:</span>
+                      <strong>{plan.name}</strong>
                     </div>
                     <div className="pms-row">
-                      <span>Hash Power Allocated:</span>
-                      <strong style={{ color: "#ffae19" }}>{plan.hashrateDisplay}</strong>
+                      <span>Plan Deposit:</span>
+                      <strong style={{ color: "#ffae19" }}>${plan.priceUsd} USD</strong>
                     </div>
                     <div className="pms-row">
-                      <span>Guaranteed 7-Day Output:</span>
-                      <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} (10× Return)</strong>
+                      <span>Expected 7-Day Return:</span>
+                      <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} USD</strong>
                     </div>
                   </div>
 
                   <button
-                    type="submit"
+                    type="button"
                     className="plan-modal-submit"
-                    disabled={authLoading}
+                    onClick={handleProceedExisting}
                   >
-                    {authLoading ? (
-                      "AUTHENTICATING NODE..."
-                    ) : authMode === "register" ? (
-                      `CREATE ACCOUNT & PROCEED TO PAYMENT ($${plan.priceUsd}) →`
-                    ) : (
-                      `SIGN IN & PROCEED TO PAYMENT ($${plan.priceUsd}) →`
-                    )}
+                    CONTINUE TO PAYMENT (${plan.priceUsd}) →
                   </button>
-                </form>
-
-                <p className="plan-modal-footer-note">
-                  {authMode === "register"
-                    ? "Your account securely registers your datacenter node and payout wallet address."
-                    : "Sign in with your registered node master password to activate your plan."}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ─── STEP 2: INSTANT CRYPTO CHECKOUT ─── */}
-        {step === 2 && (
-          <div className="checkout-step-container">
-            <div className="checkout-nav-bar">
-              <button type="button" className="checkout-back-link" onClick={() => setStep(1)}>
-                ← Change Account / Plan
-              </button>
-              <div className="checkout-timer-pill" title="Locked conversion rate">
-                <span className="timer-dot" />
-                <span>Rate Locked: {timerDisplay}</span>
-              </div>
-            </div>
-
-            {/* Plan & Amount Summary Bar */}
-            <div className="checkout-summary-bar">
-              <div className="csb-left">
-                <span className="csb-plan-name">{plan.name}</span>
-                <span className="csb-email-meta">Node: {email}</span>
-              </div>
-              <div className="csb-right">
-                <span className="csb-usd-amount">${plan.priceUsd} USD</span>
-                <span className="csb-payout-label">10× Output: ${plan.targetUsd.toLocaleString()}</span>
-              </div>
-            </div>
-
-            {/* Token Selector Pills */}
-            <div className="checkout-tokens-section">
-              <label className="checkout-section-label">Select Deposit Currency:</label>
-              <div className="checkout-token-grid">
-                {(Object.keys(PAYMENT_OPTIONS) as PaymentCoin[]).map((coinKey) => {
-                  const opt = PAYMENT_OPTIONS[coinKey];
-                  const isSelected = selectedCoin === coinKey;
-                  return (
-                    <button
-                      key={coinKey}
-                      type="button"
-                      className={`checkout-token-pill ${isSelected ? "selected" : ""}`}
-                      onClick={() => setSelectedCoin(coinKey)}
-                    >
-                      <img
-                        src={opt.icon}
-                        alt={opt.symbol}
-                        className="token-pill-icon"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = "none";
-                        }}
-                      />
-                      <div className="token-pill-info">
-                        <span className="token-pill-symbol">{opt.symbol}</span>
-                        <span className="token-pill-net">{opt.network.split(" ")[0]}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Payment Details Container */}
-            <div className="checkout-payment-box">
-              <div className="cpb-top">
-                <div className="cpb-network-badge">
-                  <span>Network: </span>
-                  <strong>{activeOption.network}</strong>
                 </div>
-                {activeOption.badge && (
-                  <span className="cpb-highlight-badge">{activeOption.badge}</span>
+              ) : (
+                /* If user needs to register or log in */
+                <div>
+                  <div className="modal-auth-tabs">
+                    <button
+                      type="button"
+                      className={`modal-auth-tab ${authMode === "register" ? "active" : ""}`}
+                      onClick={() => {
+                        setAuthMode("register");
+                        setError("");
+                      }}
+                    >
+                      Create Account
+                    </button>
+                    <button
+                      type="button"
+                      className={`modal-auth-tab ${authMode === "login" ? "active" : ""}`}
+                      onClick={() => {
+                        setAuthMode("login");
+                        setError("");
+                      }}
+                    >
+                      Sign In
+                    </button>
+                  </div>
+
+                  {error && <div className="plan-input-error" style={{ marginBottom: "0.9rem" }}>{error}</div>}
+
+                  <form onSubmit={handleAuthSubmit} className="plan-modal-form">
+                    <div className="plan-input-group">
+                      <label htmlFor="planUserEmail">Your Email Address</label>
+                      <div className="plan-email-input-wrap">
+                        <input
+                          id="planUserEmail"
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => {
+                            setEmail(e.target.value);
+                            if (error) setError("");
+                          }}
+                          autoFocus
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {authMode === "register" && (
+                      <div className="plan-input-group">
+                        <label htmlFor="planUsername">Your Name or Username (Optional)</label>
+                        <input
+                          id="planUsername"
+                          type="text"
+                          placeholder="e.g. Alex"
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                        />
+                      </div>
+                    )}
+
+                    <div className="plan-input-group">
+                      <label htmlFor="planPassword">Password</label>
+                      <div className="auth-input-wrap" style={{ position: "relative" }}>
+                        <input
+                          id="planPassword"
+                          type={showPassword ? "text" : "password"}
+                          placeholder={authMode === "register" ? "At least 6 characters" : "Your password"}
+                          value={password}
+                          onChange={(e) => {
+                            setPassword(e.target.value);
+                            if (error) setError("");
+                          }}
+                          required
+                          minLength={6}
+                          style={{ width: "100%", paddingRight: "40px" }}
+                        />
+                        <button
+                          type="button"
+                          className="auth-toggle-pwd"
+                          onClick={() => setShowPassword(!showPassword)}
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          style={{ position: "absolute", right: "12px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                        >
+                          {showPassword ? (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"></path>
+                              <line x1="1" y1="1" x2="23" y2="23"></line>
+                            </svg>
+                          ) : (
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                              <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {authMode === "register" && (
+                      <div className="plan-input-group">
+                        <label htmlFor="planConfirmPassword">Confirm Password</label>
+                        <input
+                          id="planConfirmPassword"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="Re-type password"
+                          value={confirmPassword}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            if (error) setError("");
+                          }}
+                          required
+                        />
+                      </div>
+                    )}
+
+                    <div className="plan-modal-specs">
+                      <div className="pms-row">
+                        <span>Selected Plan:</span>
+                        <strong>{plan.name}</strong>
+                      </div>
+                      <div className="pms-row">
+                        <span>Plan Deposit:</span>
+                        <strong style={{ color: "#ffae19" }}>${plan.priceUsd} USD</strong>
+                      </div>
+                      <div className="pms-row">
+                        <span>Expected 7-Day Return:</span>
+                        <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} USD</strong>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="plan-modal-submit"
+                      disabled={authLoading}
+                    >
+                      {authLoading ? (
+                        "CREATING ACCOUNT..."
+                      ) : authMode === "register" ? (
+                        `CONTINUE TO PAYMENT ($${plan.priceUsd}) →`
+                      ) : (
+                        `SIGN IN & CONTINUE ($${plan.priceUsd}) →`
+                      )}
+                    </button>
+                  </form>
+
+                  <p className="plan-modal-footer-note">
+                    {authMode === "register"
+                      ? "Your account gives you access to your personal mining dashboard and automatic payouts."
+                      : "Sign in with your password to continue to payment."}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── STEP 2: PROFESSIONAL CLEAN DEPOSIT PAYMENT ─── */}
+          {step === 2 && (
+            <div className="checkout-step-container">
+              {/* Header with simple navigation */}
+              <div className="pro-checkout-header">
+                <button
+                  type="button"
+                  className="pro-back-btn"
+                  onClick={() => setStep(1)}
+                >
+                  ← Back
+                </button>
+                <div className="pro-badge">
+                  <span className="dot" />
+                  Payment Ready
+                </div>
+              </div>
+
+              {/* Plan Summary Card */}
+              <div className="pro-summary-card">
+                <div className="pro-summary-left">
+                  <span className="pro-plan-title">{plan.name}</span>
+                  <span className="pro-user-email">{email}</span>
+                </div>
+                <div className="pro-summary-right">
+                  <span className="pro-plan-price">${plan.priceUsd} USD</span>
+                  <span className="pro-plan-payout">Returns ${plan.targetUsd.toLocaleString()}</span>
+                </div>
+              </div>
+
+              {/* Currency Selector (Horizontal scrollable on mobile) */}
+              <div className="pro-coin-selector-wrap">
+                <label className="pro-section-title">Select Payment Coin:</label>
+                <div className="pro-coin-grid">
+                  {(Object.keys(PAYMENT_OPTIONS) as PaymentCoin[]).map((coinKey) => {
+                    const opt = PAYMENT_OPTIONS[coinKey];
+                    const isSelected = selectedCoin === coinKey;
+                    return (
+                      <button
+                        key={coinKey}
+                        type="button"
+                        className={`pro-coin-btn ${isSelected ? "selected" : ""}`}
+                        onClick={() => setSelectedCoin(coinKey)}
+                      >
+                        <img
+                          src={opt.icon}
+                          alt={opt.symbol}
+                          className="pro-coin-icon"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                        <span className="pro-coin-name">{opt.symbol}</span>
+                        <span className="pro-coin-network">{opt.network.split(" ")[0]}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Payment Details Container */}
+              <div className="pro-deposit-details">
+                {/* Amount Row */}
+                <div className="pro-detail-row">
+                  <div className="pro-detail-header">
+                    <span className="pro-detail-label">Amount to Send</span>
+                    <span className="pro-network-pill">{activeOption.network}</span>
+                  </div>
+                  <div
+                    className="pro-amount-box"
+                    onClick={() => handleCopy(cryptoAmount, "amount")}
+                    style={{ cursor: "pointer" }}
+                    title="Tap to copy"
+                  >
+                    <div className="pro-amount-text">
+                      {cryptoAmount} {activeOption.symbol}
+                    </div>
+                    <button
+                      type="button"
+                      className="pro-copy-sm-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCopy(cryptoAmount, "amount");
+                      }}
+                    >
+                      {copiedType === "amount" ? "Copied ✓" : "Copy"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Deposit Address Row */}
+                <div className="pro-detail-row">
+                  <div className="pro-detail-header">
+                    <span className="pro-detail-label">Deposit Address</span>
+                    <span style={{ fontSize: "0.75rem", color: "#22c55e", fontWeight: 700 }}>
+                      {copiedType === "address" ? "Copied to clipboard ✓" : "Tap to copy"}
+                    </span>
+                  </div>
+                  <div
+                    className="pro-address-box"
+                    onClick={() => handleCopy(activeOption.address, "address")}
+                    style={{
+                      cursor: "pointer",
+                      borderColor: copiedType === "address" ? "#22c55e" : undefined,
+                      background: copiedType === "address" ? "rgba(34, 197, 94, 0.1)" : undefined,
+                    }}
+                    title="Tap to copy"
+                  >
+                    {activeOption.address}
+                  </div>
+                  <button
+                    type="button"
+                    className="pro-copy-full-btn"
+                    onClick={() => handleCopy(activeOption.address, "address")}
+                    style={{
+                      borderColor: copiedType === "address" ? "#22c55e" : undefined,
+                      color: copiedType === "address" ? "#22c55e" : undefined,
+                      background: copiedType === "address" ? "rgba(34, 197, 94, 0.15)" : undefined,
+                    }}
+                  >
+                    {copiedType === "address" ? "Address Copied to Clipboard ✓" : "Copy Wallet Address"}
+                  </button>
+                </div>
+
+                {/* Optional QR Code Button */}
+                <div>
+                  <button
+                    type="button"
+                    className="pro-qr-toggle-btn"
+                    onClick={() => setShowQr(!showQr)}
+                  >
+                    {showQr ? "Hide QR Code ▲" : "Show QR Code ▼"}
+                  </button>
+
+                  {showQr && (
+                    <div className="pro-qr-container" style={{ marginTop: "0.5rem" }}>
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                          activeOption.address
+                        )}&color=ffae19&bgcolor=080d1a`}
+                        alt="Payment QR"
+                        className="pro-qr-image"
+                      />
+                      <span style={{ fontSize: "0.75rem", color: "#94a3b8" }}>Scan with your crypto wallet</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CTA: Confirm Payment */}
+              <button
+                type="button"
+                className="pro-submit-payment-btn"
+                onClick={handleConfirmPayment}
+              >
+                I Have Sent the Payment →
+              </button>
+
+              <p className="pro-payment-tip">
+                Send only <strong>{activeOption.symbol}</strong> using the <strong>{activeOption.network}</strong>. Your plan activates automatically once received.
+              </p>
+            </div>
+          )}
+
+          {/* ─── STEP 3: CLEAN PROFESSIONAL CONFIRMATION ─── */}
+          {step === 3 && (
+            <div className="pro-confirm-wrapper">
+              <div className={`pro-confirm-icon-wrap ${verificationStage === 3 ? "success" : ""}`}>
+                {verificationStage < 3 ? (
+                  <div className="pro-confirm-spinner" />
+                ) : (
+                  <span style={{ fontSize: "2rem", color: "#22c55e", fontWeight: "bold" }}>✓</span>
                 )}
               </div>
 
-              {/* Exact Amount Row */}
-              <div className="cpb-amount-box">
-                <span className="cpb-label">Send Exactly:</span>
-                <div className="cpb-amount-row">
-                  <div className="cpb-crypto-num">
-                    <strong className="crypto-val">{cryptoAmount}</strong>
-                    <span className="crypto-sym">{activeOption.symbol}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="cpb-copy-btn"
-                    onClick={() => handleCopy(cryptoAmount, "amount")}
-                  >
-                    {copiedType === "amount" ? "COPIED ✓" : "COPY AMOUNT"}
-                  </button>
-                </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
+                <h3 className="pro-confirm-title">
+                  {verificationStage === 1 && "Checking for Payment..."}
+                  {verificationStage === 2 && "Payment Detected!"}
+                  {verificationStage === 3 && "Payment Confirmed!"}
+                </h3>
+                <p className="pro-confirm-sub">
+                  {verificationStage === 1 && "Checking the blockchain network for your deposit..."}
+                  {verificationStage === 2 && "Deposit received. Activating your mining plan..."}
+                  {verificationStage === 3 && `Your ${plan.name} plan is ready. Opening your dashboard...`}
+                </p>
               </div>
 
-              {/* QR Code and Wallet Address */}
-              <div className="cpb-address-section">
-                <div className="cpb-qr-wrapper">
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
-                      activeOption.address
-                    )}&color=ffae19&bgcolor=030712`}
-                    alt={`${activeOption.symbol} Deposit QR`}
-                    className="cpb-qr-img"
-                    width={130}
-                    height={130}
-                  />
-                  <span className="cpb-qr-caption">Scan with Wallet</span>
-                </div>
-
-                <div className="cpb-address-wrap">
-                  <span className="cpb-label">Deposit Address:</span>
-                  <div className="cpb-addr-box">
-                    <code className="cpb-address-text">{activeOption.address}</code>
-                  </div>
-                  <button
-                    type="button"
-                    className="cpb-copy-address-btn"
-                    onClick={() => handleCopy(activeOption.address, "address")}
-                  >
-                    {copiedType === "address" ? "ADDRESS COPIED ✓" : "COPY WALLET ADDRESS"}
-                  </button>
-                </div>
+              <div className="pro-confirm-progress-track">
+                <div
+                  className="pro-confirm-progress-bar"
+                  style={{
+                    width: verificationStage === 1 ? "40%" : verificationStage === 2 ? "75%" : "100%",
+                  }}
+                />
               </div>
             </div>
-
-            {/* CTA: Confirm Broadcast */}
-            <button
-              type="button"
-              className="checkout-confirm-btn"
-              onClick={handleConfirmPayment}
-            >
-              <span>I HAVE SENT {cryptoAmount} {activeOption.symbol} →</span>
-            </button>
-
-            <div className="checkout-secure-notice">
-              <span>🔒 Encrypted Node Reservation · Guaranteed Instant Activation upon Confirmation</span>
-            </div>
-          </div>
-        )}
-
-        {/* ─── STEP 3: HIGH-TECH VERIFICATION & PROVISIONING STATE ─── */}
-        {step === 3 && (
-          <div className="checkout-step-container step-verification">
-            <div className="verify-radar-wrap">
-              {verificationStage < 3 ? (
-                <div className="verify-radar-circle">
-                  <div className="radar-sweep" />
-                  <div className="radar-dot d1" />
-                  <div className="radar-dot d2" />
-                  <div className="radar-center-icon">⚡</div>
-                </div>
-              ) : (
-                <div className="verify-success-check">
-                  <span className="check-icon">✓</span>
-                </div>
-              )}
-            </div>
-
-            <div className="verify-status-box">
-              <h3 className="verify-title">
-                {verificationStage === 1 && "Detecting Network Transfer..."}
-                {verificationStage === 2 && "Confirming On-Chain Transaction..."}
-                {verificationStage === 3 && "Payment Verified! Allocating Node..."}
-              </h3>
-              <p className="verify-desc">
-                {verificationStage === 1 && "Connecting to blockchain mempool to verify deposit..."}
-                {verificationStage === 2 && "Deposit verified: 1 confirmation received."}
-                {verificationStage === 3 &&
-                  `Initializing ${plan.name} (${plan.hashrateDisplay}) in GovCloud Datacenter...`}
-              </p>
-            </div>
-
-            <div className="verify-terminal">
-              <div className="vt-line">[00:01] Listening to {activeOption.network} network node...</div>
-              {verificationStage >= 2 && (
-                <div className="vt-line green">[00:02] TxHash found: Deposit verified for {email}</div>
-              )}
-              {verificationStage >= 3 && (
-                <div className="vt-line amber">
-                  [00:03] Node provisioned: Cluster US-East assigned · 10× yield unlocked
-                </div>
-              )}
-            </div>
-
-            <div className="verify-progress-track">
-              <div
-                className="verify-progress-fill"
-                style={{
-                  width: verificationStage === 1 ? "40%" : verificationStage === 2 ? "75%" : "100%",
-                }}
-              />
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
-    </div>
+    </Portal>
   );
 }
