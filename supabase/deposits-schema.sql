@@ -57,7 +57,18 @@ create policy "Service role full access on deposits"
   using (true)
   with check (true);
 
--- 5. Auto-update updated_at timestamp
+-- 5. Create the shared updated_at helper (safe to re-run)
+create or replace function public.handle_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+-- Auto-update updated_at timestamp
 drop trigger if exists on_deposit_updated on public.deposits;
 create trigger on_deposit_updated
   before update on public.deposits
@@ -70,6 +81,14 @@ create policy "Service role can read all miners"
   for select
   to service_role
   using (true);
+
+-- 7. Grant PostgreSQL table privileges to PostgREST roles (Resolves "permission denied for table deposits")
+grant usage on schema public to anon, authenticated, service_role;
+grant all on table public.deposits to anon, authenticated, service_role;
+grant all on table public.miners to anon, authenticated, service_role;
+grant usage, select on all sequences in schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 
 comment on table public.deposits is 'Payment deposits submitted by miners awaiting admin confirmation';
 comment on column public.deposits.status is 'pending = waiting for admin, confirmed = approved, rejected = declined';

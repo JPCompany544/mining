@@ -12,6 +12,7 @@ export interface DepositRecord {
   crypto_amount: string;
   wallet_address: string;
   status: DepositStatus;
+  admin_note?: string | null;
   created_at: string;
   updated_at: string;
 }

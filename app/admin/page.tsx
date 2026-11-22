@@ -196,11 +196,21 @@ export default function AdminPage() {
       {/* Top Bar */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
+          <button
+            type="button"
+            style={styles.backPlatformBtn}
+            onClick={() => router.push("/dashboard")}
+            title="Go to Miner Dashboard"
+          >
+            ← Platform
+          </button>
           <h1 style={styles.logo}>⚡ CHUKO ADMIN</h1>
           <span style={styles.adminBadge}>ADMIN</span>
         </div>
         <div style={styles.headerRight}>
-          <span style={styles.adminEmail}>{adminEmail}</span>
+          <span style={styles.adminEmail} title={adminEmail}>
+            {adminEmail}
+          </span>
           <button style={styles.signOutBtn} onClick={handleSignOut}>
             Sign Out
           </button>
@@ -545,21 +555,39 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    padding: "1rem 1.5rem",
+    padding: "0.85rem 1rem",
     borderBottom: "1px solid rgba(255,255,255,0.08)",
     flexWrap: "wrap",
     gap: "0.5rem",
+    background: "#080d1a",
   },
-  headerLeft: { display: "flex", alignItems: "center", gap: 10 },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  backPlatformBtn: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 6,
+    color: "#94a3b8",
+    padding: "4px 8px",
+    fontFamily: "'Rajdhani', sans-serif",
+    fontSize: "0.78rem",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
   logo: {
     fontFamily: "'Orbitron', sans-serif",
-    fontSize: "1.1rem",
+    fontSize: "1rem",
     fontWeight: 900,
     color: "#ffae19",
     margin: 0,
+    letterSpacing: "0.03em",
   },
   adminBadge: {
-    padding: "2px 8px",
+    padding: "2px 6px",
     background: "rgba(236, 117, 5, 0.15)",
     border: "1px solid rgba(236, 117, 5, 0.3)",
     borderRadius: 6,
@@ -569,10 +597,23 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#ffae19",
     letterSpacing: "0.1em",
   },
-  headerRight: { display: "flex", alignItems: "center", gap: 12 },
-  adminEmail: { color: "#94a3b8", fontSize: "0.85rem", fontWeight: 600 },
+  headerRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginLeft: "auto",
+  },
+  adminEmail: {
+    color: "#94a3b8",
+    fontSize: "0.82rem",
+    fontWeight: 600,
+    maxWidth: "180px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
   signOutBtn: {
-    padding: "6px 14px",
+    padding: "5px 12px",
     background: "rgba(239, 68, 68, 0.1)",
     border: "1px solid rgba(239, 68, 68, 0.3)",
     borderRadius: 8,
@@ -580,6 +621,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "0.8rem",
     fontWeight: 700,
     cursor: "pointer",
+    whiteSpace: "nowrap",
   },
 
   // Stats Row

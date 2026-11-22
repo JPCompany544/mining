@@ -106,6 +106,11 @@ export default function Navbar() {
     };
   }, [isConfigured, setUserEmail]);
 
+  // Dedicated admin portal has its own header; do not render public fixed navbar over it
+  if (pathname?.startsWith("/admin")) {
+    return null;
+  }
+
   return (
     <nav id="navbar" className={`${isScrolled ? "scrolled" : ""} ${isOpen ? "menu-open" : ""}`}>
       <div className="container nav-inner">

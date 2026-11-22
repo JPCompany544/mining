@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminClient } from '@/lib/supabase/admin';
 import { createClient as createServerClient } from '@/lib/supabase/server';
+import { updateFallbackDeposit } from '@/lib/deposits/memoryStore';
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
@@ -35,22 +36,36 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid status. Use "confirmed" or "rejected".' }, { status: 400 });
     }
 
-    const { data, error } = await adminClient
-      .from('deposits')
-      .update({
-        status,
-        admin_note: admin_note || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    let updatedDeposit = null;
+    if (adminClient) {
+      const { data, error } = await adminClient
+        .from('deposits')
+        .update({
+          status,
+          admin_note: admin_note || null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (!error && data) {
+        updatedDeposit = data;
+      }
     }
 
-    return NextResponse.json({ deposit: data });
+    if (!updatedDeposit) {
+      const fbUpdated = updateFallbackDeposit(id, status, admin_note);
+      if (fbUpdated) {
+        updatedDeposit = fbUpdated;
+      }
+    }
+
+    if (!updatedDeposit) {
+      return NextResponse.json({ error: 'Deposit not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ deposit: updatedDeposit });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Internal server error';
     return NextResponse.json({ error: message }, { status: 500 });

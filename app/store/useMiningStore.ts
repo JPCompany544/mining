@@ -88,92 +88,15 @@ const getModeKeyByTier = (tier: number): string => {
   }
 };
 
-export const DEFAULT_BTC_SETTLEMENTS: PastSession[] = [
-  {
-    sessionId: "NX-7F9B-2041",
-    coin: "BTC",
-    amount: 0.84192045,
-    date: "19/11/2026",
-    speedTier: 2,
-    completedUsd: 65634.43,
-    startedAt: Date.now() - 86400000 * 1,
-    completedAt: Date.now() - 3600000 * 2,
-    status: "completed",
-  },
-  {
-    sessionId: "NX-3E18-99D2",
-    coin: "BTC",
-    amount: 0.24581043,
-    date: "17/11/2026",
-    speedTier: 1,
-    completedUsd: 19162.99,
-    startedAt: Date.now() - 86400000 * 3,
-    completedAt: Date.now() - 86400000 * 2,
-    status: "completed",
-  },
-  {
-    sessionId: "NX-8A4C-110F",
-    coin: "BTC",
-    amount: 0.69241018,
-    date: "14/11/2026",
-    speedTier: 2,
-    completedUsd: 53979.71,
-    startedAt: Date.now() - 86400000 * 6,
-    completedAt: Date.now() - 86400000 * 5,
-    status: "completed",
-  },
-  {
-    sessionId: "NX-1D90-67BE",
-    coin: "BTC",
-    amount: 0.05839211,
-    date: "10/11/2026",
-    speedTier: 0,
-    completedUsd: 4552.17,
-    startedAt: Date.now() - 86400000 * 10,
-    completedAt: Date.now() - 86400000 * 9,
-    status: "completed",
-  },
-  {
-    sessionId: "NX-5E77-90AA",
-    coin: "BTC",
-    amount: 0.41902847,
-    date: "05/11/2026",
-    speedTier: 1,
-    completedUsd: 32666.62,
-    startedAt: Date.now() - 86400000 * 15,
-    completedAt: Date.now() - 86400000 * 14,
-    status: "completed",
-  },
-  {
-    sessionId: "NX-8A19-33DF",
-    coin: "BTC",
-    amount: 0.11470592,
-    date: "01/11/2026",
-    speedTier: 0,
-    completedUsd: 8942.24,
-    startedAt: Date.now() - 86400000 * 19,
-    completedAt: Date.now() - 86400000 * 18,
-    status: "completed",
-  },
-  {
-    sessionId: "NX-2B66-784C",
-    coin: "BTC",
-    amount: 0.94723015,
-    date: "28/10/2026",
-    speedTier: 2,
-    completedUsd: 73844.27,
-    startedAt: Date.now() - 86400000 * 23,
-    completedAt: Date.now() - 86400000 * 22,
-    status: "completed",
-  },
-];
+// Payout settlements default honestly to empty for every account and future ones
+export const DEFAULT_BTC_SETTLEMENTS: PastSession[] = [];
 
 export const useMiningStore = create<MiningStore>((set, get) => ({
   isMining: false,
   selectedCoin: "btc",
   speedTier: 1, // default Boosted
   currentSession: null,
-  history: DEFAULT_BTC_SETTLEMENTS,
+  history: [],
   unpaidSessions: [],
   isWithdrawalModalOpen: false,
   withdrawalSession: null,
@@ -369,20 +292,15 @@ export const useMiningStore = create<MiningStore>((set, get) => ({
 
     const savedHistory = loadHistory();
     if (savedHistory && savedHistory.length > 0) {
-      // Check if default settlements are already present
-      const hasDefaults = savedHistory.some((h) =>
-        DEFAULT_BTC_SETTLEMENTS.some((d) => d.sessionId === h.sessionId)
+      // Filter out any legacy mock sessions (starting with NX-)
+      const genuineHistory = savedHistory.filter(
+        (h) => !h.sessionId?.startsWith("NX-")
       );
-      if (!hasDefaults) {
-        const merged = [...savedHistory, ...DEFAULT_BTC_SETTLEMENTS];
-        set({ history: merged });
-        persistHistory(merged);
-      } else {
-        set({ history: savedHistory });
-      }
+      set({ history: genuineHistory });
+      persistHistory(genuineHistory);
     } else {
-      set({ history: DEFAULT_BTC_SETTLEMENTS });
-      persistHistory(DEFAULT_BTC_SETTLEMENTS);
+      set({ history: [] });
+      persistHistory([]);
     }
 
     // Restore persistent unpaid sessions if available

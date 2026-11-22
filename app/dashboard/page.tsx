@@ -69,7 +69,7 @@ export default function DashboardPage() {
   const history = useMiningStore((s) => s.history);
 
   const displayHistory = useMemo(() => {
-    return history && history.length > 0 ? history : DEFAULT_BTC_SETTLEMENTS;
+    return history || [];
   }, [history]);
 
   const setSelectedCoin = useMiningStore((s) => s.setSelectedCoin);
@@ -701,38 +701,52 @@ export default function DashboardPage() {
             {activeTab === "settlements" ? (
               <div className="fhs-settlements-panel">
                 <div className="fhs-list">
-                  {displayHistory.map((sessionItem, index) => (
-                    <div key={sessionItem.sessionId + index} className="fhs-row">
-                      <div className="fhs-row-left">
-                        <img
-                          src="https://cdn.brandfetch.io/idkbqeYUg6/theme/dark/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q"
-                          alt="BTC"
-                          className="fhs-coin-icon"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                        <div className="fhs-row-details">
-                          <span className="fhs-row-title">{sessionItem.coin} Cloud Settlement</span>
-                          <span className="fhs-row-meta">
-                            Session: <code>{sessionItem.sessionId}</code> · {sessionItem.date || "Completed"}
+                  {displayHistory.length === 0 ? (
+                    <div style={{ padding: "3rem 1rem", textAlign: "center", color: "#64748b" }}>
+                      <div style={{ fontSize: "2rem", marginBottom: "0.5rem" }}>⛏️</div>
+                      <div style={{ fontFamily: "'Orbitron', sans-serif", fontSize: "0.95rem", color: "#94a3b8", fontWeight: 700 }}>
+                        No Payout Settlements Yet
+                      </div>
+                      <p style={{ fontSize: "0.85rem", margin: "0.35rem 0 0", color: "#64748b" }}>
+                        Settlements and earnings will appear here once mining is activated and completed.
+                      </p>
+                    </div>
+                  ) : (
+                    displayHistory.map((sessionItem, index) => (
+                      <div key={sessionItem.sessionId + index} className="fhs-row">
+                        <div className="fhs-row-left">
+                          <img
+                            src="https://cdn.brandfetch.io/idkbqeYUg6/theme/dark/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q"
+                            alt="BTC"
+                            className="fhs-coin-icon"
+                            onError={(e) => {
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                          <div className="fhs-row-details">
+                            <span className="fhs-row-title">{sessionItem.coin} Cloud Settlement</span>
+                            <span className="fhs-row-meta">
+                              Session: <code>{sessionItem.sessionId}</code> · {sessionItem.date || "Completed"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="fhs-row-right">
+                          <span className="fhs-row-amount">+{sessionItem.amount.toFixed(8)} {sessionItem.coin}</span>
+                          <span className="fhs-row-usd">
+                            {sessionItem.completedUsd ? `≈ $${sessionItem.completedUsd.toLocaleString()} USD` : "Settled"}
                           </span>
                         </div>
                       </div>
-                      <div className="fhs-row-right">
-                        <span className="fhs-row-amount">+{sessionItem.amount.toFixed(8)} {sessionItem.coin}</span>
-                        <span className="fhs-row-usd">
-                          {sessionItem.completedUsd ? `≈ $${sessionItem.completedUsd.toLocaleString()} USD` : "Settled"}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
-                <div className="fhs-footer">
-                  <button className="fhs-clear-btn" onClick={clearHistory}>
-                    Clear Settlement History
-                  </button>
-                </div>
+                {displayHistory.length > 0 && (
+                  <div className="fhs-footer">
+                    <button className="fhs-clear-btn" onClick={clearHistory}>
+                      Clear Settlement History
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="fhs-logs-panel">
