@@ -5841,3 +5841,342 @@ body {
   font-family: 'Rajdhani', sans-serif;
   font-weight: 700;
 }
+
+/* ==========================================================================
+   Chuko Mining - Authentication System Styles
+   ========================================================================== */
+
+.auth-page-wrapper {
+  min-height: calc(100vh - 80px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6rem 1.5rem 3rem 1.5rem;
+  position: relative;
+  background: radial-gradient(circle at 50% 20%, rgba(236, 117, 5, 0.08) 0%, rgba(3, 7, 18, 1) 70%);
+}
+
+.auth-card {
+  background: linear-gradient(145deg, rgba(18, 22, 34, 0.98) 0%, rgba(10, 12, 20, 0.98) 100%);
+  border: 1px solid rgba(236, 117, 5, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.8), 0 0 35px rgba(236, 117, 5, 0.15);
+  border-radius: 20px;
+  max-width: 460px;
+  width: 100%;
+  padding: 2.25rem;
+  position: relative;
+  z-index: 10;
+  backdrop-filter: blur(16px);
+}
+
+.auth-header {
+  text-align: center;
+  margin-bottom: 1.75rem;
+}
+
+.auth-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #EC7505 0%, #ffae19 100%);
+  color: #030712;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 0.65rem;
+  padding: 3px 12px;
+  border-radius: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.auth-title {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #f8fafc;
+  margin: 0 0 0.4rem 0;
+  letter-spacing: -0.01em;
+}
+
+.auth-sub {
+  font-size: 0.92rem;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.auth-alert {
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  line-height: 1.4;
+}
+
+.auth-alert-error {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.auth-alert-success {
+  background: rgba(34, 197, 94, 0.12);
+  border: 1px solid rgba(34, 197, 94, 0.4);
+  color: #86efac;
+}
+
+.auth-alert-warning {
+  background: rgba(236, 117, 5, 0.12);
+  border: 1px solid rgba(236, 117, 5, 0.4);
+  color: #fde047;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.auth-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.auth-label {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #cbd5e1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.auth-label-link {
+  font-size: 0.8rem;
+  text-transform: none;
+  color: #ffae19;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.auth-label-link:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-input {
+  width: 100%;
+  background: rgba(4, 7, 18, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #f8fafc;
+  transition: all 0.2s;
+  outline: none;
+}
+
+.auth-input:focus {
+  border-color: #EC7505;
+  box-shadow: 0 0 15px rgba(236, 117, 5, 0.35);
+  background: rgba(4, 7, 18, 0.95);
+}
+
+.auth-input-wrap .auth-toggle-pwd {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+
+.auth-input-wrap .auth-toggle-pwd:hover {
+  color: #ffffff;
+}
+
+.auth-submit-btn {
+  width: 100%;
+  padding: 1rem;
+  border-radius: 12px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  font-size: 0.88rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #EC7505 0%, #ffae19 100%);
+  color: #030712;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(236, 117, 5, 0.4);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(236, 117, 5, 0.6);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-footer-links {
+  margin-top: 1.75rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: center;
+  font-size: 0.9rem;
+  color: #94a3b8;
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 600;
+}
+
+.auth-footer-links a {
+  color: #ffae19;
+  text-decoration: none;
+  font-weight: 700;
+  margin-left: 0.35rem;
+  transition: all 0.2s;
+}
+
+.auth-footer-links a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.auth-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(3, 7, 18, 0.3);
+  border-top-color: #030712;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Navbar auth buttons */
+.nav-auth-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.nav-auth-login {
+  color: #cbd5e1;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  text-decoration: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: all 0.2s;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.nav-auth-login:hover {
+  color: #ffffff;
+  border-color: #EC7505;
+  background: rgba(236, 117, 5, 0.1);
+}
+
+.nav-auth-register {
+  background: linear-gradient(135deg, #EC7505 0%, #ffae19 100%);
+  color: #030712 !important;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: 0 2px 12px rgba(236, 117, 5, 0.3);
+}
+
+.nav-auth-register:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 18px rgba(236, 117, 5, 0.5);
+}
+
+.nav-user-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(236, 117, 5, 0.25);
+  border-radius: 20px;
+}
+
+.nav-user-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.nav-user-email {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-logout-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.nav-logout-btn:hover {
+  color: #ef4444;
+}
+

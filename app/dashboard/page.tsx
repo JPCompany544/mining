@@ -17,6 +17,11 @@ import { formatUsd, formatTime, formatPercentage } from "../utils/formatting";
 import WithdrawalModal from "../components/WithdrawalModal";
 import UnpaidBanner from "../components/UnpaidBanner";
 import PlanEmailModal from "../components/PlanEmailModal";
+import { createClient } from "@/lib/supabase/client";
+import { getSupabaseEnv } from "@/lib/supabase/config";
+import { ensureMinerProfile } from "@/lib/supabase/minerProfile";
+import type { MinerProfile } from "@/lib/types/miner";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 
 function playCompletionChime() {
   if (typeof window === "undefined") return;
@@ -81,6 +86,66 @@ export default function DashboardPage() {
   const [coinFilter, setCoinFilter] = useState<"unlocked" | "all">("unlocked");
   const [emailInputOpen, setEmailInputOpen] = useState(false);
   const [tempEmail, setTempEmail] = useState("");
+  const [minerUser, setMinerUser] = useState<{ id: string; email?: string } | null>(null);
+  const [minerProfile, setMinerProfile] = useState<MinerProfile | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // Authenticate miner node session
+  useEffect(() => {
+    const { isConfigured } = getSupabaseEnv();
+    if (!isConfigured) {
+      setAuthLoading(false);
+      return;
+    }
+
+    const supabase = createClient();
+
+    supabase.auth.getUser().then(async ({ data }: { data: { user: User | null } }) => {
+      const user = data.user;
+      if (!user) {
+        // Redirect to login if unauthenticated on dashboard
+        router.push("/login?redirect=/dashboard");
+        return;
+      }
+
+      setMinerUser({ id: user.id, email: user.email });
+      if (user.email) {
+        setUserEmail(user.email);
+      }
+
+      // Ensure / fetch miner profile from Supabase
+      const profile = await ensureMinerProfile(supabase, user);
+      setMinerProfile(profile);
+      setAuthLoading(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event: AuthChangeEvent, session: Session | null) => {
+      if (event === "SIGNED_OUT" || !session) {
+        setMinerUser(null);
+        setMinerProfile(null);
+        router.push("/login");
+      } else if (session?.user) {
+        setMinerUser({ id: session.user.id, email: session.user.email });
+        if (session.user.email) setUserEmail(session.user.email);
+        const profile = await ensureMinerProfile(supabase, session.user);
+        setMinerProfile(profile);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [router, setUserEmail]);
+
+  const handleSignOut = async () => {
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+    } catch {}
+    router.push("/login");
+  };
 
   const animationFrameIdRef = useRef<number | null>(null);
   const isMiningLiveRef = useRef(false);
@@ -343,7 +408,11 @@ export default function DashboardPage() {
         <header className="fintech-account-header">
           <div className="fah-left">
             <div className="fah-user-info">
-              <span className="fah-account-label">ACCOUNT / CLOUD NODE</span>
+              <span className="fah-account-label">
+                {minerProfile?.username
+                  ? `MINER NODE: ${minerProfile.username.toUpperCase()}`
+                  : "ACCOUNT / CLOUD NODE"}
+              </span>
               {emailInputOpen ? (
                 <form onSubmit={handleSaveEmail} className="fah-email-form">
                   <input
@@ -359,7 +428,9 @@ export default function DashboardPage() {
                 </form>
               ) : (
                 <div className="fah-email-row" onClick={() => { setTempEmail(userEmail || ""); setEmailInputOpen(true); }}>
-                  <span className="fah-email-text">{userEmail || "Connect Email Address"}</span>
+                  <span className="fah-email-text">
+                    {minerUser?.email || userEmail || "Connect Email Address"}
+                  </span>
                   <button className="fah-edit-btn" aria-label="Edit Email">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"></path>
@@ -371,10 +442,38 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="fah-right">
+          <div className="fah-right" style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
             <Link href="/" className="fah-exit-btn">
               <span>← Plans</span>
             </Link>
+            {minerUser ? (
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="fah-exit-btn"
+                style={{
+                  background: "rgba(239, 68, 68, 0.12)",
+                  borderColor: "rgba(239, 68, 68, 0.35)",
+                  color: "#fca5a5",
+                  cursor: "pointer",
+                }}
+                title="Disconnect & Sign out"
+              >
+                <span>Sign Out</span>
+              </button>
+            ) : (
+              <Link
+                href="/login"
+                className="fah-exit-btn"
+                style={{
+                  background: "rgba(236, 117, 5, 0.15)",
+                  borderColor: "#EC7505",
+                  color: "#ffae19",
+                }}
+              >
+                <span>Sign In</span>
+              </Link>
+            )}
           </div>
         </header>
 

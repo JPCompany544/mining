@@ -3,12 +3,20 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { getSupabaseEnv } from "@/lib/supabase/config";
+import { useMiningStore } from "@/app/store/useMiningStore";
+import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
 
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [user, setUser] = useState<{ email?: string; id: string } | null>(null);
+
+  const setUserEmail = useMiningStore((s) => s.setUserEmail);
+  const { isConfigured } = getSupabaseEnv();
 
   const toggleMenu = () => {
     setIsOpen(!isOpen);
@@ -29,6 +37,26 @@ export default function Navbar() {
     setIsOpen(false);
   };
 
+  const handleSignOut = async () => {
+    setIsOpen(false);
+    if (!isConfigured) {
+      setUser(null);
+      router.push("/login");
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      await supabase.auth.signOut();
+      setUser(null);
+      router.push("/login");
+      router.refresh();
+    } catch (err) {
+      console.error("Sign out error", err);
+      router.push("/login");
+    }
+  };
+
   useEffect(() => {
     const handleScroll = () => {
       if (window.scrollY > 20) {
@@ -39,11 +67,44 @@ export default function Navbar() {
     };
 
     window.addEventListener("scroll", handleScroll);
-
     return () => {
       window.removeEventListener("scroll", handleScroll);
     };
   }, []);
+
+  // Listen to Supabase Auth State
+  useEffect(() => {
+    if (!isConfigured) return;
+
+    const supabase = createClient();
+
+    // 1. Initial check
+    supabase.auth.getUser().then(({ data }: { data: { user: User | null } }) => {
+      const user = data.user;
+      if (user) {
+        setUser({ email: user.email, id: user.id });
+        if (user.email) setUserEmail(user.email);
+      } else {
+        setUser(null);
+      }
+    });
+
+    // 2. Subscribe to auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => {
+      if (session?.user) {
+        setUser({ email: session.user.email, id: session.user.id });
+        if (session.user.email) setUserEmail(session.user.email);
+      } else {
+        setUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [isConfigured, setUserEmail]);
 
   return (
     <nav id="navbar" className={`${isScrolled ? "scrolled" : ""} ${isOpen ? "menu-open" : ""}`}>
@@ -77,6 +138,42 @@ export default function Navbar() {
           >
             Support
           </a>
+
+          {user ? (
+            <div className="nav-user-chip">
+              <span className="nav-user-indicator" title="Connected to Cloud Cluster" />
+              <span className="nav-user-email" title={user.email || "Node Operator"}>
+                {user.email || "Operator"}
+              </span>
+              <button
+                type="button"
+                className="nav-logout-btn"
+                onClick={handleSignOut}
+                title="Disconnect Node / Sign Out"
+                aria-label="Sign Out"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div className="nav-auth-group">
+              <Link
+                href="/login"
+                className="nav-auth-login"
+                onClick={() => setIsOpen(false)}
+              >
+                Log In
+              </Link>
+              <Link
+                href="/register"
+                className="nav-auth-register"
+                onClick={() => setIsOpen(false)}
+              >
+                Register
+              </Link>
+            </div>
+          )}
+
           <Link href="/#plans" className="nav-cta" onClick={() => setIsOpen(false)}>
             Start Mining
           </Link>

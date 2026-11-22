@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm Your Chuko Mining Account</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #030712;
+      color: #f3f4f6;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrapper {
+      width: 100%;
+      background-color: #030712;
+      padding: 40px 15px;
+      box-sizing: border-box;
+    }
+    .container {
+      max-width: 560px;
+      margin: 0 auto;
+      background: linear-gradient(145deg, #121622 0%, #0a0c14 100%);
+      border: 1px solid rgba(236, 117, 5, 0.35);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7), 0 0 30px rgba(236, 117, 5, 0.15);
+    }
+    .header {
+      background: rgba(4, 7, 18, 0.8);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 28px 32px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      color: #EC7505;
+      text-transform: uppercase;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .logo span {
+      color: #f3f4f6;
+      font-weight: 400;
+    }
+    .badge {
+      display: inline-block;
+      margin-top: 10px;
+      background: rgba(236, 117, 5, 0.15);
+      border: 1px solid #EC7505;
+      color: #ffae19;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+    .content {
+      padding: 36px 32px;
+    }
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      margin: 0 0 16px 0;
+      line-height: 1.3;
+    }
+    p {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #94a3b8;
+      margin: 0 0 20px 0;
+    }
+    .node-box {
+      background: rgba(4, 7, 18, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 16px 20px;
+      margin-bottom: 28px;
+    }
+    .node-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+    .node-row:last-child {
+      margin-bottom: 0;
+    }
+    .node-label {
+      color: #64748b;
+      font-weight: 600;
+    }
+    .node-value {
+      color: #22c55e;
+      font-weight: 700;
+      font-family: monospace;
+    }
+    .cta-container {
+      text-align: center;
+      margin: 32px 0 24px 0;
+    }
+    .btn {
+      display: inline-block;
+      background: linear-gradient(135deg, #EC7505 0%, #ffae19 100%);
+      color: #030712 !important;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      text-decoration: none;
+      padding: 15px 36px;
+      border-radius: 10px;
+      box-shadow: 0 6px 25px rgba(236, 117, 5, 0.4);
+    }
+    .code-box {
+      margin-top: 24px;
+      background: rgba(0, 0, 0, 0.5);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      font-size: 12px;
+      color: #94a3b8;
+      word-break: break-all;
+    }
+    .footer {
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 24px 32px;
+      background: rgba(4, 7, 18, 0.5);
+      text-align: center;
+      font-size: 12px;
+      color: #64748b;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="container">
+      <div class="header">
+        <div class="logo">CHUKOHASH<span>.io</span></div>
+        <div><span class="badge">Cloud Mining Protocol</span></div>
+      </div>
+      <div class="content">
+        <h1>Activate Your Miner Account</h1>
+        <p>Welcome to <strong>Chukohash.io</strong>. Your cloud mining account has been initialized and is ready for node allocation.</p>
+        
+        <div class="node-box">
+          <div class="node-row">
+            <span class="node-label">Registered Node Email:</span>
+            <span class="node-value" style="color: #f3f4f6;">{{ .Email }}</span>
+          </div>
+          <div class="node-row">
+            <span class="node-label">Cluster Allocation:</span>
+            <span class="node-value">GovCloud Datacenter Tier 4</span>
+          </div>
+          <div class="node-row">
+            <span class="node-label">Status:</span>
+            <span class="node-value">Awaiting Email Verification</span>
+          </div>
+        </div>
+
+        <p>Please click the button below to verify your email address and gain immediate access to your mining dashboard.</p>
+
+        <div class="cta-container">
+          <a href="{{ .ConfirmationURL }}" class="btn">CONFIRM & ACTIVATE NODE →</a>
+        </div>
+
+        <div class="code-box">
+          If the button does not work, copy and paste this link into your browser:<br>
+          <a href="{{ .ConfirmationURL }}" style="color: #ffae19; text-decoration: underline;">{{ .ConfirmationURL }}</a>
+        </div>
+      </div>
+      <div class="footer">
+        © 2026 Chukohash.io. Enterprise Cloud Mining Infrastructure.<br>
+        If you did not create an account with Chukohash, you can safely disregard this email.
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+
