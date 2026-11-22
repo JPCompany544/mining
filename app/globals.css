@@ -6180,3 +6180,100 @@ body {
   color: #ef4444;
 }
 
+/* Modal Auth Tabs for Plan Selection Signup */
+.modal-auth-tabs {
+  display: flex;
+  background: rgba(4, 7, 18, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 1.25rem;
+  gap: 4px;
+}
+
+.modal-auth-tab {
+  flex: 1;
+  padding: 8px 12px;
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+
+.modal-auth-tab.active {
+  background: linear-gradient(135deg, #EC7505 0%, #ffae19 100%);
+  color: #030712;
+  box-shadow: 0 2px 12px rgba(236, 117, 5, 0.35);
+}
+
+.modal-auth-tab:hover:not(.active) {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.modal-auth-logged-card {
+  background: rgba(34, 197, 94, 0.06);
+  border: 1px solid rgba(34, 197, 94, 0.3);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.malc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.malc-badge {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #22c55e;
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.malc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+}
+
+.malc-switch-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.malc-switch-btn:hover {
+  color: #f87171;
+}
+
+.malc-email {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #f8fafc;
+}
+

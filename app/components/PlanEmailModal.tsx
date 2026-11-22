@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { MiningMode } from "../config/mining";
 import { useMiningStore } from "../store/useMiningStore";
 import { COINS } from "../config/coins";
+import { createClient } from "@/lib/supabase/client";
+import { getSupabaseEnv } from "@/lib/supabase/config";
+import { ensureMinerProfile } from "@/lib/supabase/minerProfile";
 
 interface PlanEmailModalProps {
   plan: MiningMode | null;
@@ -96,11 +99,21 @@ function playSoundChime() {
 export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModalProps) {
   const router = useRouter();
 
-  // Multi-step: 1 = Email Signup, 2 = Payment Sheet, 3 = Verification / Provisioning
+  // Multi-step: 1 = Auth / Signup, 2 = Payment Sheet, 3 = Verification / Provisioning
   const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Auth form state
+  const [authMode, setAuthMode] = useState<"register" | "login">("register");
+  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
   const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [authLoading, setAuthLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Payment states
   const [selectedCoin, setSelectedCoin] = useState<PaymentCoin>("usdt");
   const [copiedType, setCopiedType] = useState<"address" | "amount" | null>(null);
   const [timeLeft, setTimeLeft] = useState(900); // 15:00 minutes
@@ -111,8 +124,9 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
   const setUserEmail = useMiningStore((s) => s.setUserEmail);
   const setPlanPaid = useMiningStore((s) => s.setPlanPaid);
   const existingEmail = useMiningStore((s) => s.userEmail);
+  const { isConfigured, siteUrl } = getSupabaseEnv();
 
-  // Reset state and pre-fill email only ONCE when modal is opened
+  // Reset state and check active auth session when modal opens
   useEffect(() => {
     if (isOpen) {
       setStep(1);
@@ -120,9 +134,25 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
       setCopiedType(null);
       setTimeLeft(900);
       setVerificationStage(0);
-      setEmail(existingEmail || "");
+      setPassword("");
+      setConfirmPassword("");
+
+      if (isConfigured) {
+        const supabase = createClient();
+        supabase.auth.getUser().then(({ data }) => {
+          if (data?.user) {
+            setCurrentUser({ id: data.user.id, email: data.user.email });
+            if (data.user.email) setEmail(data.user.email);
+          } else {
+            setCurrentUser(null);
+            setEmail(existingEmail || "");
+          }
+        });
+      } else {
+        setEmail(existingEmail || "");
+      }
     }
-  }, [isOpen, existingEmail]);
+  }, [isOpen, existingEmail, isConfigured]);
 
   // 15-minute countdown timer on Step 2
   useEffect(() => {
@@ -160,17 +190,122 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
     }
   }, []);
 
-  // Step 1 Submission: Validate email -> Step 2
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  // Handle Authenticated User Fast Proceed
+  const handleProceedExisting = () => {
+    if (currentUser?.email) {
+      setUserEmail(currentUser.email);
+    }
+    setStep(2);
+  };
+
+  // Step 1: Sign up or Log in -> Proceed to Step 2
+  const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanEmail = email.trim();
+    setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@") || !cleanEmail.includes(".")) {
-      setError("Please enter a valid email address");
+      setError("Please enter a valid email address.");
       return;
     }
-    setError("");
-    setUserEmail(cleanEmail);
-    setStep(2);
+
+    if (!password) {
+      setError("Please enter your account password.");
+      return;
+    }
+
+    if (authMode === "register") {
+      if (password.length < 6) {
+        setError("Password must be at least 6 characters.");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
+      }
+    }
+
+    // If Supabase is not configured, fallback gracefully to store
+    if (!isConfigured) {
+      setUserEmail(cleanEmail);
+      setStep(2);
+      return;
+    }
+
+    setAuthLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      if (authMode === "register") {
+        // Register new miner account
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              username: username.trim() || cleanEmail.split("@")[0],
+            },
+            emailRedirectTo: `${siteUrl}/auth/callback`,
+          },
+        });
+
+        if (signUpError) {
+          const lower = signUpError.message.toLowerCase();
+          if (
+            lower.includes("already registered") ||
+            lower.includes("already exists") ||
+            lower.includes("user already registered")
+          ) {
+            setError(
+              "An account with this email already exists. Click 'Sign In' above to continue."
+            );
+          } else {
+            setError(signUpError.message);
+          }
+          setAuthLoading(false);
+          return;
+        }
+
+        // Anti-enumeration duplicate check
+        if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          setError(
+            "An account with this email is already registered. Click 'Sign In' above to continue."
+          );
+          setAuthLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          await ensureMinerProfile(supabase, data.user, username.trim());
+          setCurrentUser({ id: data.user.id, email: data.user.email });
+        }
+      } else {
+        // Sign in existing miner
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: cleanEmail,
+          password,
+        });
+
+        if (signInError) {
+          setError("Invalid email address or password. Please try again.");
+          setAuthLoading(false);
+          return;
+        }
+
+        if (data.user) {
+          setCurrentUser({ id: data.user.id, email: data.user.email });
+        }
+      }
+
+      // Successful auth -> advance to payment sheet!
+      setUserEmail(cleanEmail);
+      setAuthLoading(false);
+      setStep(2);
+    } catch (err: any) {
+      setError(err.message || "Authentication failed. Please try again.");
+      setAuthLoading(false);
+    }
   };
 
   // Step 2 Submission: "I Have Sent Payment" -> Step 3 Verification
@@ -207,75 +342,219 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
           </button>
         )}
 
-        {/* ─── STEP 1: EMAIL SIGNUP ─── */}
+        {/* ─── STEP 1: AUTHENTICATION / REGISTRATION ─── */}
         {step === 1 && (
           <div className="checkout-step-container">
             <div className="plan-modal-header">
               <span className="plan-badge-inline">{plan.badge || "CLOUD RIG"}</span>
-              <h3 className="plan-modal-title">Allocate Mining Node</h3>
+              <h3 className="plan-modal-title">
+                {currentUser ? "Allocate Mining Node" : "Miner Registration"}
+              </h3>
               <p className="plan-modal-sub">
                 Deploying <strong style={{ color: "#ffae19" }}>{plan.name}</strong> (${plan.priceUsd} plan · mines{" "}
                 <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()}</strong> in 7 days).
               </p>
             </div>
 
-            <form onSubmit={handleEmailSubmit} className="plan-modal-form">
-              <div className="plan-input-group">
-                <label htmlFor="planUserEmail">Enter your Email Address</label>
-                <div className="plan-email-input-wrap">
-                  <input
-                    id="planUserEmail"
-                    type="email"
-                    placeholder="e.g. miner@domain.com"
-                    value={email}
-                    onChange={(e) => {
-                      setEmail(e.target.value);
-                      if (error) setError("");
-                    }}
-                    autoFocus
-                    required
-                  />
-                  {email && (
+            {/* If user is already authenticated */}
+            {currentUser ? (
+              <div className="plan-modal-form">
+                <div className="modal-auth-logged-card">
+                  <div className="malc-top">
+                    <span className="malc-badge">
+                      <span className="malc-dot" />
+                      AUTHENTICATED OPERATOR
+                    </span>
                     <button
                       type="button"
-                      className="plan-email-clear-btn"
+                      className="malc-switch-btn"
                       onClick={() => {
-                        setEmail("");
-                        const el = document.getElementById("planUserEmail");
-                        if (el) el.focus();
+                        setCurrentUser(null);
+                        setPassword("");
+                        setConfirmPassword("");
                       }}
-                      aria-label="Clear email"
                     >
-                      ✕
+                      Switch Account
                     </button>
+                  </div>
+                  <div className="malc-email">{currentUser.email}</div>
+                </div>
+
+                <div className="plan-modal-specs">
+                  <div className="pms-row">
+                    <span>Cloud Rig Hardware:</span>
+                    <strong>{plan.rigHardware}</strong>
+                  </div>
+                  <div className="pms-row">
+                    <span>Hash Power Allocated:</span>
+                    <strong style={{ color: "#ffae19" }}>{plan.hashrateDisplay}</strong>
+                  </div>
+                  <div className="pms-row">
+                    <span>Guaranteed 7-Day Output:</span>
+                    <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} (10× Return)</strong>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="plan-modal-submit"
+                  onClick={handleProceedExisting}
+                >
+                  PROCEED TO PAYMENT (${plan.priceUsd}) →
+                </button>
+              </div>
+            ) : (
+              /* If user needs to register or log in */
+              <div>
+                <div className="modal-auth-tabs">
+                  <button
+                    type="button"
+                    className={`modal-auth-tab ${authMode === "register" ? "active" : ""}`}
+                    onClick={() => {
+                      setAuthMode("register");
+                      setError("");
+                    }}
+                  >
+                    Create Account
+                  </button>
+                  <button
+                    type="button"
+                    className={`modal-auth-tab ${authMode === "login" ? "active" : ""}`}
+                    onClick={() => {
+                      setAuthMode("login");
+                      setError("");
+                    }}
+                  >
+                    Sign In
+                  </button>
+                </div>
+
+                {error && <div className="plan-input-error" style={{ marginBottom: "0.9rem" }}>{error}</div>}
+
+                <form onSubmit={handleAuthSubmit} className="plan-modal-form">
+                  <div className="plan-input-group">
+                    <label htmlFor="planUserEmail">Node Email Address</label>
+                    <div className="plan-email-input-wrap">
+                      <input
+                        id="planUserEmail"
+                        type="email"
+                        placeholder="miner@domain.com"
+                        value={email}
+                        onChange={(e) => {
+                          setEmail(e.target.value);
+                          if (error) setError("");
+                        }}
+                        autoFocus
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {authMode === "register" && (
+                    <div className="plan-input-group">
+                      <label htmlFor="planUsername">Call-Sign / Username (Optional)</label>
+                      <input
+                        id="planUsername"
+                        type="text"
+                        placeholder="e.g. ApexMiner-01"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                      />
+                    </div>
                   )}
-                </div>
-                {error && <span className="plan-input-error">{error}</span>}
+
+                  <div className="plan-input-group">
+                    <label htmlFor="planPassword">Password</label>
+                    <div className="auth-input-wrap" style={{ position: "relative" }}>
+                      <input
+                        id="planPassword"
+                        type={showPassword ? "text" : "password"}
+                        placeholder={authMode === "register" ? "Min. 6 characters" : "Account password"}
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          if (error) setError("");
+                        }}
+                        required
+                        minLength={6}
+                        style={{ width: "100%", paddingRight: "40px" }}
+                      />
+                      <button
+                        type="button"
+                        className="auth-toggle-pwd"
+                        onClick={() => setShowPassword(!showPassword)}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        style={{ position: "absolute", right: "12px", background: "none", border: "none", color: "#94a3b8", cursor: "pointer" }}
+                      >
+                        {showPassword ? (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"></path>
+                            <line x1="1" y1="1" x2="23" y2="23"></line>
+                          </svg>
+                        ) : (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {authMode === "register" && (
+                    <div className="plan-input-group">
+                      <label htmlFor="planConfirmPassword">Confirm Password</label>
+                      <input
+                        id="planConfirmPassword"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Re-enter password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          if (error) setError("");
+                        }}
+                        required
+                      />
+                    </div>
+                  )}
+
+                  <div className="plan-modal-specs">
+                    <div className="pms-row">
+                      <span>Cloud Rig Hardware:</span>
+                      <strong>{plan.rigHardware}</strong>
+                    </div>
+                    <div className="pms-row">
+                      <span>Hash Power Allocated:</span>
+                      <strong style={{ color: "#ffae19" }}>{plan.hashrateDisplay}</strong>
+                    </div>
+                    <div className="pms-row">
+                      <span>Guaranteed 7-Day Output:</span>
+                      <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} (10× Return)</strong>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="plan-modal-submit"
+                    disabled={authLoading}
+                  >
+                    {authLoading ? (
+                      "AUTHENTICATING NODE..."
+                    ) : authMode === "register" ? (
+                      `CREATE ACCOUNT & PROCEED TO PAYMENT ($${plan.priceUsd}) →`
+                    ) : (
+                      `SIGN IN & PROCEED TO PAYMENT ($${plan.priceUsd}) →`
+                    )}
+                  </button>
+                </form>
+
+                <p className="plan-modal-footer-note">
+                  {authMode === "register"
+                    ? "Your account securely registers your datacenter node and payout wallet address."
+                    : "Sign in with your registered node master password to activate your plan."}
+                </p>
               </div>
-
-              <div className="plan-modal-specs">
-                <div className="pms-row">
-                  <span>Cloud Rig Hardware:</span>
-                  <strong>{plan.rigHardware}</strong>
-                </div>
-                <div className="pms-row">
-                  <span>Hash Power Allocated:</span>
-                  <strong style={{ color: "#ffae19" }}>{plan.hashrateDisplay}</strong>
-                </div>
-                <div className="pms-row">
-                  <span>Guaranteed 7-Day Output:</span>
-                  <strong style={{ color: "#22c55e" }}>${plan.targetUsd.toLocaleString()} (10× Return)</strong>
-                </div>
-              </div>
-
-              <button type="submit" className="plan-modal-submit">
-                CONTINUE TO PAYMENT (${plan.priceUsd}) →
-              </button>
-            </form>
-
-            <p className="plan-modal-footer-note">
-              No password or KYC required. Your email is your node identifier and payout notification channel.
-            </p>
+            )}
           </div>
         )}
 
@@ -284,7 +563,7 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
           <div className="checkout-step-container">
             <div className="checkout-nav-bar">
               <button type="button" className="checkout-back-link" onClick={() => setStep(1)}>
-                ← Change Email
+                ← Change Account / Plan
               </button>
               <div className="checkout-timer-pill" title="Locked conversion rate">
                 <span className="timer-dot" />
@@ -299,15 +578,15 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
                 <span className="csb-email-meta">Node: {email}</span>
               </div>
               <div className="csb-right">
-                <span className="csb-usd-amount">${plan.priceUsd}.00</span>
-                <span className="csb-label">Plan Fee</span>
+                <span className="csb-usd-amount">${plan.priceUsd} USD</span>
+                <span className="csb-payout-label">10× Output: ${plan.targetUsd.toLocaleString()}</span>
               </div>
             </div>
 
-            {/* Asset Selector Pills */}
-            <div className="checkout-asset-selector">
-              <label className="cas-label">Select Payment Cryptocurrency</label>
-              <div className="cas-pills-row">
+            {/* Token Selector Pills */}
+            <div className="checkout-tokens-section">
+              <label className="checkout-section-label">Select Deposit Currency:</label>
+              <div className="checkout-token-grid">
                 {(Object.keys(PAYMENT_OPTIONS) as PaymentCoin[]).map((coinKey) => {
                   const opt = PAYMENT_OPTIONS[coinKey];
                   const isSelected = selectedCoin === coinKey;
@@ -315,12 +594,21 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
                     <button
                       key={coinKey}
                       type="button"
-                      className={`cas-pill ${isSelected ? "selected" : ""}`}
+                      className={`checkout-token-pill ${isSelected ? "selected" : ""}`}
                       onClick={() => setSelectedCoin(coinKey)}
                     >
-                      <img src={opt.icon} alt={opt.symbol} className="cas-pill-icon" />
-                      <span className="cas-pill-symbol">{opt.symbol}</span>
-                      {opt.badge && <span className="cas-pill-badge">{opt.badge}</span>}
+                      <img
+                        src={opt.icon}
+                        alt={opt.symbol}
+                        className="token-pill-icon"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                      <div className="token-pill-info">
+                        <span className="token-pill-symbol">{opt.symbol}</span>
+                        <span className="token-pill-net">{opt.network.split(" ")[0]}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -328,89 +616,78 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
             </div>
 
             {/* Payment Details Container */}
-            <div className="checkout-details-container">
-              {/* 1. Exact Amount Card */}
-              <div className="cdb-amount-card">
-                <div className="cdb-amount-header">
-                  <span className="cdb-section-label">Exact Amount to Send</span>
-                  <span className="cdb-usd-equiv">≈ ${plan.priceUsd}.00 USD</span>
+            <div className="checkout-payment-box">
+              <div className="cpb-top">
+                <div className="cpb-network-badge">
+                  <span>Network: </span>
+                  <strong>{activeOption.network}</strong>
                 </div>
-                <div className="cdb-amount-action-row">
-                  <div className="cdb-amount-display">
-                    <span className="cad-value">{cryptoAmount}</span>
-                    <span className="cad-symbol">{activeOption.symbol}</span>
+                {activeOption.badge && (
+                  <span className="cpb-highlight-badge">{activeOption.badge}</span>
+                )}
+              </div>
+
+              {/* Exact Amount Row */}
+              <div className="cpb-amount-box">
+                <span className="cpb-label">Send Exactly:</span>
+                <div className="cpb-amount-row">
+                  <div className="cpb-crypto-num">
+                    <strong className="crypto-val">{cryptoAmount}</strong>
+                    <span className="crypto-sym">{activeOption.symbol}</span>
                   </div>
                   <button
                     type="button"
-                    className={`cdb-copy-pill ${copiedType === "amount" ? "copied" : ""}`}
+                    className="cpb-copy-btn"
                     onClick={() => handleCopy(cryptoAmount, "amount")}
                   >
-                    {copiedType === "amount" ? "✓ Copied" : "Copy"}
+                    {copiedType === "amount" ? "COPIED ✓" : "COPY AMOUNT"}
                   </button>
                 </div>
               </div>
 
-              {/* 2. QR Code Box */}
-              <div className="cdb-qr-card">
-                <img
-                  src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                    activeOption.address
-                  )}&color=ffae19&bgcolor=080d1a`}
-                  alt="Payment QR"
-                  className="cdb-qr-img"
-                />
-                <span className="cdb-qr-caption">Scan to pay with any crypto wallet</span>
-              </div>
-
-              {/* 3. Deposit Address Card */}
-              <div className="cdb-address-card">
-                <div className="cdb-address-header">
-                  <span className="cdb-section-label">Deposit Address</span>
-                  <span className="cdb-network-tag">{activeOption.network}</span>
+              {/* QR Code and Wallet Address */}
+              <div className="cpb-address-section">
+                <div className="cpb-qr-wrapper">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                      activeOption.address
+                    )}&color=ffae19&bgcolor=030712`}
+                    alt={`${activeOption.symbol} Deposit QR`}
+                    className="cpb-qr-img"
+                    width={130}
+                    height={130}
+                  />
+                  <span className="cpb-qr-caption">Scan with Wallet</span>
                 </div>
 
-                <div className="cdb-address-box" onClick={() => handleCopy(activeOption.address, "address")}>
-                  <code className="cdb-address-text">{activeOption.address}</code>
+                <div className="cpb-address-wrap">
+                  <span className="cpb-label">Deposit Address:</span>
+                  <div className="cpb-addr-box">
+                    <code className="cpb-address-text">{activeOption.address}</code>
+                  </div>
+                  <button
+                    type="button"
+                    className="cpb-copy-address-btn"
+                    onClick={() => handleCopy(activeOption.address, "address")}
+                  >
+                    {copiedType === "address" ? "ADDRESS COPIED ✓" : "COPY WALLET ADDRESS"}
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  className={`cdb-copy-address-btn ${copiedType === "address" ? "copied" : ""}`}
-                  onClick={() => handleCopy(activeOption.address, "address")}
-                >
-                  {copiedType === "address" ? (
-                    <>
-                      <span>✓</span>
-                      <span>Address Copied to Clipboard</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                      </svg>
-                      <span>Copy Deposit Address</span>
-                    </>
-                  )}
-                </button>
               </div>
             </div>
 
-            {/* Blockchain Detection Banner */}
-            <div className="checkout-detection-banner">
-              <span className="beacon-pulse" />
-              <span>Scanning blockchain for incoming {activeOption.symbol} transaction...</span>
-            </div>
-
-            {/* Confirm Payment CTA Button */}
-            <button type="button" className="checkout-paid-button" onClick={handleConfirmPayment}>
-              I HAVE SENT PAYMENT →
+            {/* CTA: Confirm Broadcast */}
+            <button
+              type="button"
+              className="checkout-confirm-btn"
+              onClick={handleConfirmPayment}
+            >
+              <span>I HAVE SENT {cryptoAmount} {activeOption.symbol} →</span>
             </button>
 
-            <p className="checkout-disclaimer">
-              Send only <strong>{activeOption.symbol}</strong> via the <strong>{activeOption.network}</strong>. Your
-              datacenter node spins up instantly upon broadcast detection.
-            </p>
+            <div className="checkout-secure-notice">
+              <span>🔒 Encrypted Node Reservation · Guaranteed Instant Activation upon Confirmation</span>
+            </div>
           </div>
         )}
 
@@ -418,27 +695,33 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
         {step === 3 && (
           <div className="checkout-step-container step-verification">
             <div className="verify-radar-wrap">
-              <div className="verify-radar-circle">
-                {verificationStage < 3 ? (
-                  <div className="verify-spinner" />
-                ) : (
-                  <div className="verify-success-check">✓</div>
-                )}
-              </div>
+              {verificationStage < 3 ? (
+                <div className="verify-radar-circle">
+                  <div className="radar-sweep" />
+                  <div className="radar-dot d1" />
+                  <div className="radar-dot d2" />
+                  <div className="radar-center-icon">⚡</div>
+                </div>
+              ) : (
+                <div className="verify-success-check">
+                  <span className="check-icon">✓</span>
+                </div>
+              )}
             </div>
 
-            <h3 className="verify-title">
-              {verificationStage === 1 && "Detecting Network Transfer..."}
-              {verificationStage === 2 && "Confirming On-Chain Transaction..."}
-              {verificationStage === 3 && "Payment Verified! Allocating Node..."}
-            </h3>
-
-            <p className="verify-desc">
-              {verificationStage === 1 && "Connecting to blockchain mempool to verify deposit..."}
-              {verificationStage === 2 && "Deposit verified: 1 confirmation received."}
-              {verificationStage === 3 &&
-                `Initializing ${plan.name} (${plan.hashrateDisplay}) in GovCloud Datacenter...`}
-            </p>
+            <div className="verify-status-box">
+              <h3 className="verify-title">
+                {verificationStage === 1 && "Detecting Network Transfer..."}
+                {verificationStage === 2 && "Confirming On-Chain Transaction..."}
+                {verificationStage === 3 && "Payment Verified! Allocating Node..."}
+              </h3>
+              <p className="verify-desc">
+                {verificationStage === 1 && "Connecting to blockchain mempool to verify deposit..."}
+                {verificationStage === 2 && "Deposit verified: 1 confirmation received."}
+                {verificationStage === 3 &&
+                  `Initializing ${plan.name} (${plan.hashrateDisplay}) in GovCloud Datacenter...`}
+              </p>
+            </div>
 
             <div className="verify-terminal">
               <div className="vt-line">[00:01] Listening to {activeOption.network} network node...</div>
@@ -446,13 +729,13 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
                 <div className="vt-line green">[00:02] TxHash found: Deposit verified for {email}</div>
               )}
               {verificationStage >= 3 && (
-                <div className="vt-line yellow">
+                <div className="vt-line amber">
                   [00:03] Node provisioned: Cluster US-East assigned · 10× yield unlocked
                 </div>
               )}
             </div>
 
-            <div className="verify-progress-bar">
+            <div className="verify-progress-track">
               <div
                 className="verify-progress-fill"
                 style={{
