@@ -38,8 +38,8 @@ export async function updateSession(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
-  // 1. Protect /dashboard route - redirect unauthenticated users to /login
-  if (pathname.startsWith('/dashboard') && !user) {
+  // 1. Protect /dashboard and /admin routes - redirect unauthenticated users to /login
+  if ((pathname.startsWith('/dashboard') || pathname.startsWith('/admin')) && !user) {
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = '/login';
     redirectUrl.searchParams.set('redirect', pathname);

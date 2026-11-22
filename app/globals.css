@@ -6605,6 +6605,11 @@ body {
   transition: width 0.4s ease;
 }
 
+@keyframes pulse-bar {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
 /* ==========================================================================
    Mobile-Optimized Deposit Modal Styles (Zero Overflow, Fluid Responsive)
    ========================================================================== */

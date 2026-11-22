@@ -121,6 +121,9 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
 
   // Step 3 Confirmation state
   const [verificationStage, setVerificationStage] = useState(0);
+  const [depositId, setDepositId] = useState<string | null>(null);
+  const [depositStatus, setDepositStatus] = useState<"pending" | "confirmed" | "rejected" | null>(null);
+  const [depositError, setDepositError] = useState("");
 
   const setUserEmail = useMiningStore((s) => s.setUserEmail);
   const setPlanPaid = useMiningStore((s) => s.setPlanPaid);
@@ -153,6 +156,9 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
       setCopiedType(null);
       setShowQr(false);
       setVerificationStage(0);
+      setDepositId(null);
+      setDepositStatus(null);
+      setDepositError("");
       setPassword("");
       setConfirmPassword("");
 
@@ -313,28 +319,85 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
     }
   };
 
-  // Step 2: "I Have Paid" -> Step 3 Confirmation & Dashboard Redirect
-  const handleConfirmPayment = () => {
+  // Step 2: "I Have Paid" -> Step 3: Create deposit record & wait for admin confirmation
+  const handleConfirmPayment = async () => {
+    if (!plan) return;
     setStep(3);
     setVerificationStage(1);
+    setDepositStatus("pending");
+    setDepositError("");
 
-    setTimeout(() => {
-      setVerificationStage(2);
-    }, 1200);
+    try {
+      const res = await fetch("/api/deposits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plan_name: plan.name,
+          plan_price_usd: plan.priceUsd,
+          tier_index: plan.tierIndex,
+          coin_symbol: activeOption.symbol,
+          coin_network: activeOption.network,
+          crypto_amount: cryptoAmount,
+          wallet_address: activeOption.address,
+        }),
+      });
 
-    setTimeout(() => {
-      setVerificationStage(3);
-      playSoundChime();
-    }, 2400);
-
-    setTimeout(() => {
-      if (plan) {
-        setPlanPaid(true, plan.tierIndex);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to submit payment");
       }
-      onClose();
-      router.push("/dashboard");
-    }, 3800);
+
+      const data = await res.json();
+      setDepositId(data.deposit.id);
+      setVerificationStage(2);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Something went wrong";
+      setDepositError(msg);
+      setVerificationStage(0);
+    }
   };
+
+  // Poll deposit status every 4 seconds once we have a depositId
+  useEffect(() => {
+    if (!depositId || depositStatus !== "pending") return;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/deposits/${depositId}/status`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.status === "confirmed") {
+          setDepositStatus("confirmed");
+          setVerificationStage(3);
+          playSoundChime();
+
+          // Redirect to dashboard after a moment
+          setTimeout(() => {
+            if (plan) {
+              setPlanPaid(true, plan.tierIndex);
+            }
+            onClose();
+            router.push("/dashboard");
+          }, 2200);
+        } else if (data.status === "rejected") {
+          setDepositStatus("rejected");
+          setVerificationStage(4);
+          if (data.admin_note) {
+            setDepositError(data.admin_note);
+          }
+        }
+      } catch {
+        // Silently retry on network errors
+      }
+    };
+
+    const interval = setInterval(poll, 4000);
+    // Run immediately on mount too
+    poll();
+
+    return () => clearInterval(interval);
+  }, [depositId, depositStatus, plan, setPlanPaid, onClose, router]);
 
   if (!isOpen || !plan) return null;
 
@@ -732,38 +795,125 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
             </div>
           )}
 
-          {/* ─── STEP 3: CLEAN PROFESSIONAL CONFIRMATION ─── */}
+          {/* ─── STEP 3: PAYMENT CONFIRMATION (ADMIN-CONTROLLED) ─── */}
           {step === 3 && (
             <div className="pro-confirm-wrapper">
-              <div className={`pro-confirm-icon-wrap ${verificationStage === 3 ? "success" : ""}`}>
-                {verificationStage < 3 ? (
-                  <div className="pro-confirm-spinner" />
-                ) : (
-                  <span style={{ fontSize: "2rem", color: "#22c55e", fontWeight: "bold" }}>✓</span>
-                )}
-              </div>
+              {/* Error submitting deposit */}
+              {verificationStage === 0 && depositError && (
+                <>
+                  <div className="pro-confirm-icon-wrap" style={{ background: "rgba(239, 68, 68, 0.12)", borderColor: "#ef4444" }}>
+                    <span style={{ fontSize: "1.8rem", color: "#ef4444" }}>!</span>
+                  </div>
+                  <h3 className="pro-confirm-title">Could Not Submit</h3>
+                  <p className="pro-confirm-sub">{depositError}</p>
+                  <button
+                    type="button"
+                    className="pro-submit-payment-btn"
+                    style={{ maxWidth: 280 }}
+                    onClick={() => { setStep(2); setDepositError(""); }}
+                  >
+                    ← Go Back &amp; Try Again
+                  </button>
+                </>
+              )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
-                <h3 className="pro-confirm-title">
-                  {verificationStage === 1 && "Checking for Payment..."}
-                  {verificationStage === 2 && "Payment Detected!"}
-                  {verificationStage === 3 && "Payment Confirmed!"}
-                </h3>
-                <p className="pro-confirm-sub">
-                  {verificationStage === 1 && "Checking the blockchain network for your deposit..."}
-                  {verificationStage === 2 && "Deposit received. Activating your mining plan..."}
-                  {verificationStage === 3 && `Your ${plan.name} plan is ready. Opening your dashboard...`}
-                </p>
-              </div>
+              {/* Stage 1: Submitting to server */}
+              {verificationStage === 1 && (
+                <>
+                  <div className="pro-confirm-icon-wrap">
+                    <div className="pro-confirm-spinner" />
+                  </div>
+                  <h3 className="pro-confirm-title">Submitting Payment...</h3>
+                  <p className="pro-confirm-sub">Recording your payment details. This will only take a moment.</p>
+                  <div className="pro-confirm-progress-track">
+                    <div className="pro-confirm-progress-bar" style={{ width: "30%" }} />
+                  </div>
+                </>
+              )}
 
-              <div className="pro-confirm-progress-track">
-                <div
-                  className="pro-confirm-progress-bar"
-                  style={{
-                    width: verificationStage === 1 ? "40%" : verificationStage === 2 ? "75%" : "100%",
-                  }}
-                />
-              </div>
+              {/* Stage 2: Waiting for admin confirmation */}
+              {verificationStage === 2 && depositStatus === "pending" && (
+                <>
+                  <div className="pro-confirm-icon-wrap">
+                    <div className="pro-confirm-spinner" />
+                  </div>
+                  <h3 className="pro-confirm-title">Confirming Payment</h3>
+                  <p className="pro-confirm-sub">
+                    Your payment has been submitted successfully. We&apos;re verifying your deposit now — this usually takes a few minutes.
+                  </p>
+                  <div className="pro-confirm-progress-track">
+                    <div className="pro-confirm-progress-bar" style={{ width: "60%", animation: "pulse-bar 2s ease-in-out infinite" }} />
+                  </div>
+                  <p style={{ fontSize: "0.78rem", color: "#64748b", fontWeight: 600, margin: 0, textAlign: "center" }}>
+                    You can wait here or close this — your payment is recorded.
+                  </p>
+                </>
+              )}
+
+              {/* Stage 3: Confirmed! */}
+              {verificationStage === 3 && (
+                <>
+                  <div className="pro-confirm-icon-wrap success">
+                    <span style={{ fontSize: "2rem", color: "#22c55e", fontWeight: "bold" }}>✓</span>
+                  </div>
+                  <h3 className="pro-confirm-title">Payment Confirmed!</h3>
+                  <p className="pro-confirm-sub">
+                    Your {plan.name} plan is now active. Redirecting you to your dashboard...
+                  </p>
+                  <div className="pro-confirm-progress-track">
+                    <div className="pro-confirm-progress-bar" style={{ width: "100%" }} />
+                  </div>
+                </>
+              )}
+
+              {/* Stage 4: Rejected */}
+              {verificationStage === 4 && (
+                <>
+                  <div className="pro-confirm-icon-wrap" style={{ background: "rgba(239, 68, 68, 0.12)", borderColor: "#ef4444" }}>
+                    <span style={{ fontSize: "1.8rem", color: "#ef4444" }}>✕</span>
+                  </div>
+                  <h3 className="pro-confirm-title">Payment Could Not Be Verified</h3>
+                  <p className="pro-confirm-sub">
+                    {depositError
+                      ? depositError
+                      : "We were unable to verify your payment. Please check the amount, network, and address, then try again."}
+                  </p>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 4 }}>
+                    <button
+                      type="button"
+                      className="pro-submit-payment-btn"
+                      style={{ maxWidth: 220 }}
+                      onClick={() => {
+                        setStep(2);
+                        setDepositError("");
+                        setDepositId(null);
+                        setDepositStatus(null);
+                        setVerificationStage(0);
+                      }}
+                    >
+                      ← Try Again
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        maxWidth: 220,
+                        padding: "0.9rem 1.5rem",
+                        borderRadius: 12,
+                        fontFamily: "'Rajdhani', sans-serif",
+                        fontWeight: 800,
+                        fontSize: "0.88rem",
+                        background: "rgba(255,255,255,0.08)",
+                        border: "1px solid rgba(255,255,255,0.15)",
+                        color: "#f8fafc",
+                        cursor: "pointer",
+                      }}
+                      onClick={onClose}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
