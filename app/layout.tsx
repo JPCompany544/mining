@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import Navbar from "./components/Navbar";
 
@@ -31,6 +32,10 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-50">
         <Navbar />
         {children}
+        <Script
+          src="//code.jivosite.com/widget/ocG4qyX20q"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
