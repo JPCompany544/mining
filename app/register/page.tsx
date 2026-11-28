@@ -58,12 +58,25 @@ export default function RegisterPage() {
     try {
       const supabase = createClient();
 
+      let savedPlan: { name: string; priceUsd: number; clickedAt?: string } | null = null;
+      try {
+        const raw = localStorage.getItem("chukohash_selected_plan");
+        if (raw) savedPlan = JSON.parse(raw);
+      } catch {}
+
       const { data, error } = await supabase.auth.signUp({
         email: trimmedEmail,
         password,
         options: {
           data: {
             username: username.trim() || trimmedEmail.split("@")[0],
+            ...(savedPlan
+              ? {
+                  selected_plan: savedPlan.name,
+                  selected_plan_price: savedPlan.priceUsd,
+                  selected_plan_at: savedPlan.clickedAt || new Date().toISOString(),
+                }
+              : {}),
           },
           emailRedirectTo: `${siteUrl}/auth/callback`,
         },

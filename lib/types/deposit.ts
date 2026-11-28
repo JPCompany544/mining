@@ -21,6 +21,9 @@ export interface AdminUserRecord {
   id: string;
   email: string;
   username: string;
+  selected_plan?: string | null;
+  selected_plan_price?: number | null;
+  selected_plan_at?: string | null;
   created_at: string;
   email_verified: boolean;
   mining_status?: string;

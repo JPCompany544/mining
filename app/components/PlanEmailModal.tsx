@@ -33,7 +33,7 @@ const PAYMENT_OPTIONS: Record<
     name: "Tether",
     symbol: "USDT",
     network: "Tron (TRC-20)",
-    address: "TNaZbM2KpomzDT9PRufvyRcFH1EBtTmgCo",
+    address: "TNFSYEcBC31GPFkyU9HctqHAiUJHJhRRtt",
     price: 1.0,
     badge: "Recommended · Lowest Fees",
     icon: "https://cdn.brandfetch.io/idpu_p285y/theme/light/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
@@ -42,7 +42,7 @@ const PAYMENT_OPTIONS: Record<
     name: "Bitcoin",
     symbol: "BTC",
     network: "Bitcoin Network",
-    address: "bc1qagvkz7ad8uqp62hwd5pztgxv82zan3wcjr2ft4",
+    address: "bc1qcarhm28ha7vk9qg3w2u58nvpeda5d3nwcukes2",
     price: 77958,
     icon: "https://cdn.brandfetch.io/idkbqeYUg6/theme/dark/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
   },
@@ -50,7 +50,7 @@ const PAYMENT_OPTIONS: Record<
     name: "Ethereum",
     symbol: "ETH",
     network: "Ethereum (ERC-20)",
-    address: "0x169C339370E67C03e84787d8eC402dd89d94b51D",
+    address: "0x365242Ee2522aE9ac12485Ba41e1F10B5400B930",
     price: 2143,
     icon: "https://cdn.brandfetch.io/idhZINDHvW/theme/dark/logo.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
   },
@@ -58,7 +58,7 @@ const PAYMENT_OPTIONS: Record<
     name: "Solana",
     symbol: "SOL",
     network: "Solana Network",
-    address: "3vwAi8FEGcerD4yfQHBFFKx4FvRzPDNMGeVRZe3qoEzj",
+    address: "G1Qi5LiLEcFLzS8jbaRtD2jXrKk8C1zWDeY3fqmrPGXF",
     price: 86.96,
     badge: "Fastest (~3 sec)",
     icon: "https://cdn.brandfetch.io/ide0NUuTHO/theme/light/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
@@ -67,7 +67,7 @@ const PAYMENT_OPTIONS: Record<
     name: "USD Coin",
     symbol: "USDC",
     network: "Ethereum (ERC-20)",
-    address: "0x169C339370E67C03e84787d8eC402dd89d94b51D",
+    address: "0x365242Ee2522aE9ac12485Ba41e1F10B5400B930",
     price: 1.0,
     icon: "https://cdn.brandfetch.io/iduqAVaA_O/theme/dark/symbol.svg?c=1bxeo22dfwv2aavbiluvm033f4zNejqr--q",
   },
@@ -172,6 +172,17 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
           if (data?.user) {
             setCurrentUser({ id: data.user.id, email: data.user.email });
             if (data.user.email) setEmail(data.user.email);
+            if (plan) {
+              supabase.auth
+                .updateUser({
+                  data: {
+                    selected_plan: plan.name,
+                    selected_plan_price: plan.priceUsd,
+                    selected_plan_at: new Date().toISOString(),
+                  },
+                })
+                .catch(() => {});
+            }
           } else {
             setCurrentUser(null);
             setEmail(existingEmail || "");
@@ -181,7 +192,7 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
         setEmail(existingEmail || "");
       }
     }
-  }, [isOpen, existingEmail, isConfigured]);
+  }, [isOpen, existingEmail, isConfigured, plan]);
 
   const activeOption = PAYMENT_OPTIONS[selectedCoin];
 
@@ -204,9 +215,21 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
   }, []);
 
   // Handle Logged-In User Quick Proceed
-  const handleProceedExisting = () => {
+  const handleProceedExisting = async () => {
     if (currentUser?.email) {
       setUserEmail(currentUser.email);
+    }
+    if (isConfigured && plan) {
+      try {
+        const supabase = createClient();
+        await supabase.auth.updateUser({
+          data: {
+            selected_plan: plan.name,
+            selected_plan_price: plan.priceUsd,
+            selected_plan_at: new Date().toISOString(),
+          },
+        });
+      } catch {}
     }
     setStep(2);
   };
@@ -257,6 +280,13 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
           options: {
             data: {
               username: username.trim() || cleanEmail.split("@")[0],
+              ...(plan
+                ? {
+                    selected_plan: plan.name,
+                    selected_plan_price: plan.priceUsd,
+                    selected_plan_at: new Date().toISOString(),
+                  }
+                : {}),
             },
             emailRedirectTo: `${siteUrl}/auth/callback`,
           },
@@ -306,6 +336,17 @@ export default function PlanEmailModal({ plan, isOpen, onClose }: PlanEmailModal
 
         if (data.user) {
           setCurrentUser({ id: data.user.id, email: data.user.email });
+          if (plan) {
+            try {
+              await supabase.auth.updateUser({
+                data: {
+                  selected_plan: plan.name,
+                  selected_plan_price: plan.priceUsd,
+                  selected_plan_at: new Date().toISOString(),
+                },
+              });
+            } catch {}
+          }
         }
       }
 

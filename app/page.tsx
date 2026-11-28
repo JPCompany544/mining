@@ -111,6 +111,19 @@ export default function Home() {
     setSpeedTier(plan.tierIndex);
     setSelectedPlanForModal(plan);
     setIsEmailModalOpen(true);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(
+          "chukohash_selected_plan",
+          JSON.stringify({
+            name: plan.name,
+            priceUsd: plan.priceUsd,
+            tierIndex: plan.tierIndex,
+            clickedAt: new Date().toISOString(),
+          })
+        );
+      } catch {}
+    }
   };
 
   return (

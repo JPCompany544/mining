@@ -30,3 +30,4 @@ export function updateFallbackDeposit(id: string, status: 'confirmed' | 'rejecte
   memoryDeposits.set(id, updated);
   return updated;
 }
+

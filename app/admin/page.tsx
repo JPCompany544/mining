@@ -8,6 +8,9 @@ interface UserRecord {
   id: string;
   email: string;
   username: string;
+  selected_plan?: string | null;
+  selected_plan_price?: number | null;
+  selected_plan_at?: string | null;
   created_at: string;
   email_verified: boolean;
   deposits: {
@@ -466,6 +469,26 @@ export default function AdminPage() {
                         <span style={styles.unverifiedBadge}>Unverified</span>
                       )}
                     </div>
+                  </div>
+                  <div style={styles.userPlanRow}>
+                    <span style={styles.userPlanLabel}>Clicked Plan:</span>
+                    {u.selected_plan ? (
+                      <span style={styles.userPlanBadge}>
+                        <strong style={{ color: "#ffae19" }}>{u.selected_plan}</strong>
+                        {u.selected_plan_price ? (
+                          <span style={{ color: "#4ade80", marginLeft: 5 }}>(${u.selected_plan_price} USD)</span>
+                        ) : null}
+                        {u.deposits.confirmed === 0 && (
+                          <span style={{ color: "#94a3b8", fontSize: "0.72rem", marginLeft: 6 }}>
+                            · Not paid yet
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span style={{ color: "#64748b", fontSize: "0.82rem", fontStyle: "italic" }}>
+                        None clicked yet
+                      </span>
+                    )}
                   </div>
                   <div style={styles.userBottom}>
                     <span style={styles.userStat}>
@@ -1000,6 +1023,30 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "0.8rem",
     color: "#64748b",
     fontWeight: 600,
+  },
+  userPlanRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+    padding: "6px 10px",
+    background: "rgba(255, 174, 25, 0.05)",
+    border: "1px solid rgba(255, 174, 25, 0.15)",
+    borderRadius: 8,
+  },
+  userPlanLabel: {
+    fontSize: "0.78rem",
+    color: "#94a3b8",
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+  userPlanBadge: {
+    fontSize: "0.85rem",
+    fontWeight: 700,
+    display: "inline-flex",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
 };
 
